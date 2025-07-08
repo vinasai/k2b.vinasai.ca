@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../utils/axios"; // Import the centralized Axios instance
+import api from "../utils/axios";
 import { GlobalContext } from "../context/GlobalContext.jsx";
-import logo from "../assets/logo.svg"; // Import the logo
+import logo from "../assets/logo.svg";
 
 export default function Login() {
   const [email, setEmail] = useState("admin@example.com");
@@ -21,7 +21,6 @@ export default function Login() {
       setEmail(savedUser);
       setRemember(true);
     }
-    // Clear token on component mount
     localStorage.removeItem("token");
   }, []);
 
@@ -43,13 +42,14 @@ export default function Login() {
       const response = await api.post("/auth/login", { email, password });
 
       if (response.data.success) {
+        setSuccess(true);
         login(response.data);
         if (remember) {
           localStorage.setItem("savedUsername", email);
         } else {
           localStorage.removeItem("savedUsername");
         }
-        navigate("/");
+        setTimeout(() => navigate("/"), 500);
       }
     } catch (err) {
       const message = err.response?.data?.message || "Login failed";
@@ -60,150 +60,235 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center p-5">
-      <div className="max-w-md w-full bg-gray-800 rounded-2xl border border-gray-700 shadow-lg p-8">
-        <div className="text-center mb-10">
-          <img src={logo} alt="Logo" className="w-32 h-32 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold">Payment System</h1>
-          <p className="text-gray-400 text-sm mt-2">
-            Please sing in to continue
-          </p>
-        </div>
-        {error && (
-          <div className="mt-4 flex items-center justify-center text-red-400 bg-red-900 bg-opacity-50 p-3 rounded-lg">
-            <svg className="w-6 h-6 mr-2 fill-current" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
-            </svg>
-            <span>{error}</span>
-          </div>
-        )}
-        {success && (
-          <div className="flex items-center bg-green-600 text-white px-4 py-2 rounded mb-4">
-            <svg className="w-4 h-4 mr-2 fill-current" viewBox="0 0 24 24">
-              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-            </svg>
-            <span>Login successful! Redirecting...</span>
-          </div>
-        )}
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1">
-              Email
-            </label>
-            <div className="relative">
-              <input
-                id="email"
-                type="text"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                autoComplete="email"
-                className="w-full pl-12 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 focus:bg-gray-600"
+    <div className="min-h-screen bg-gray-900 flex flex-col">
+      {/* Main Content */}
+      <div className="flex-1 flex items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md">
+          {/* Logo Section */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 bg-gray-800 rounded-2xl p-3 mb-4">
+              <img
+                src={logo}
+                alt="Logo"
+                className="w-full h-full object-contain"
               />
-              <svg
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-                viewBox="0 0 24 24"
-              >
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-              </svg>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+              Payment System
+            </h1>
+            <p className="mt-2 text-sm text-gray-400">
+              Enter your credentials to access your account
+            </p>
+          </div>
+
+          {/* Login Form Card */}
+          <div className="bg-gray-800 rounded-xl shadow-xl">
+            <div className="p-6 sm:p-8">
+              {/* Alert Messages */}
+              {error && (
+                <div className="mb-6 bg-red-900/50 border border-red-600/50 rounded-lg p-4">
+                  <div className="flex">
+                    <svg
+                      className="h-5 w-5 text-red-400 mt-0.5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <p className="ml-3 text-sm text-red-200">{error}</p>
+                  </div>
+                </div>
+              )}
+
+              {success && (
+                <div className="mb-6 bg-green-900/50 border border-green-600/50 rounded-lg p-4">
+                  <div className="flex">
+                    <svg
+                      className="h-5 w-5 text-green-400 mt-0.5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <p className="ml-3 text-sm text-green-200">
+                      Authentication successful. Redirecting...
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Login Form */}
+              <form onSubmit={handleLogin} className="space-y-6">
+                {/* Email Input */}
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-gray-200 mb-2"
+                  >
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg
+                        className="h-5 w-5 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                        />
+                      </svg>
+                    </div>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="appearance-none block w-full pl-10 pr-3 py-3 bg-gray-700 border border-gray-600 
+                               rounded-lg text-gray-100 placeholder-gray-400
+                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 
+                               transition duration-150 ease-in-out sm:text-sm"
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                </div>
+
+                {/* Password Input */}
+                <div className="mb-8">
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-gray-200 mb-2"
+                  >
+                    Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg
+                        className="h-5 w-5 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                        />
+                      </svg>
+                    </div>
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="appearance-none block w-full pl-10 pr-10 py-3 bg-gray-700 border border-gray-600 
+                               rounded-lg text-gray-100 placeholder-gray-400
+                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 
+                               transition duration-150 ease-in-out sm:text-sm"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    >
+                      <svg
+                        className="h-5 w-5 text-gray-500 hover:text-gray-400 transition-colors"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        {showPassword ? (
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                          />
+                        ) : (
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                          />
+                        )}
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg
+                           text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 
+                           focus:ring-offset-2 focus:ring-blue-500 focus:ring-offset-gray-800
+                           font-medium transition duration-150 ease-in-out
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <svg
+                      className="animate-spin h-5 w-5 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  ) : (
+                    "Sign In"
+                  )}
+                </button>
+              </form>
+            </div>
+
+            {/* Card Footer */}
+            <div className="px-6 py-4 bg-gray-850 border-t border-gray-700 rounded-b-xl">
+              <p className="text-xs text-center text-gray-400">
+                Powered by{" "}
+                <a
+                  href="https://vinasai.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  Vinasai Inc
+                </a>
+              </p>
             </div>
           </div>
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium mb-1"
-            >
-              Password
-            </label>
-            <div className="relative">
-              <input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                autoComplete="current-password"
-                className="w-full pl-12 pr-12 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 focus:bg-gray-600"
-              />
-              <svg
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-                viewBox="0 0 24 24"
-              >
-                <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" />
-              </svg>
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 focus:outline-none"
-              >
-                {showPassword ? (
-                  <svg className="w-5 h-5 text-gray-400" viewBox="0 0 24 24">
-                    <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5 text-gray-400" viewBox="0 0 24 24">
-                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-sm text-gray-400">
-            <label className="inline-flex items-center">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-                className="form-checkbox text-blue-500 focus:ring-blue-400 mr-2"
-              />
-              Remember me
-            </label>
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full py-3 rounded-lg font-semibold text-white transition ${
-              loading
-                ? "bg-blue-600 cursor-not-allowed"
-                : "bg-blue-500 hover:bg-blue-600"
-            }`}
-          >
-            {loading ? (
-              <svg
-                className="animate-spin h-5 w-5 mx-auto text-white"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                ></path>
-              </svg>
-            ) : (
-              "Sign In"
-            )}
-          </button>
-        </form>
-        <div className="flex items-center my-6">
-          <div className="flex-grow h-px bg-gray-600"></div>
-        </div>
-        <div className="text-center text-sm text-gray-400">
-          Powerd By{" "}
-          <a
-            href="https://vinasai.com"
-            target="_blank"
-            className="text-blue-500 hover:underline font-medium"
-          >
-            Vinasai Inc
-          </a>
         </div>
       </div>
     </div>

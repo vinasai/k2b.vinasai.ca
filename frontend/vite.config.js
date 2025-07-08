@@ -11,28 +11,33 @@ export default defineConfig({
 
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "favicon.ico", "robots.txt"],
+      includeAssets: [
+        "favicon.svg",
+        "favicon.ico",
+        "apple-touch-icon.png",
+        "robots.txt",
+      ],
       manifest: {
         name: "K2B Dancing School",
         short_name: "K2B School",
         description: "Manage your students and payments easily",
-        theme_color: "#000000",
-        background_color: "#000000",
+        theme_color: "#ffffff",
+        background_color: "#ffffff",
         display: "standalone",
         start_url: "/",
         icons: [
           {
-            src: "/web-app-manifest-192x192.png",
+            src: "web-app-manifest-192x192.png",
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: "/web-app-manifest-512x512.png",
+            src: "web-app-manifest-512x512.png",
             sizes: "512x512",
             type: "image/png",
           },
           {
-            src: "/web-app-manifest-512x512.png",
+            src: "web-app-manifest-512x512.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any maskable",
@@ -41,7 +46,40 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
-        navigateFallback: "/offline.html",
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith("/api"),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "api-cache",
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 Days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "pages-cache",
+              networkTimeoutSeconds: 3,
+              plugins: [
+                {
+                  cacheKeyWillBeUsed: async ({ request }) => {
+                    return `${request.url}`;
+                  },
+                  handlerDidError: async () => {
+                    return caches.match("/offline.html");
+                  },
+                },
+              ],
+            },
+          },
+        ],
       },
     }),
   ],
