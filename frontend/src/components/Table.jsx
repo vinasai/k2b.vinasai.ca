@@ -281,9 +281,21 @@ export default function Table({
                             ? `Paid: ${s.paymentDate}`
                             : `Due: ${s.paymentDue} days`}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        {/* <div className="text-xs text-gray-500">
                           DOB: {s.dob}
-                        </div>
+                        </div> */}
+                        {displayStatus === "paid" && s.paymentMarkedBy && (
+                          <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
+                            <svg
+                              className="w-3 h-3 flex-shrink-0"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <span>Marked by: {s.paymentMarkedBy}</span>
+                          </div>
+                        )}
                         {displayStatus !== "paid" && s.paymentDue && (
                           <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
                             <svg

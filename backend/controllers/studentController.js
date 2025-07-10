@@ -50,6 +50,7 @@ exports.getStudents = async (req, res) => {
         status: isPaid ? "paid" : "not-paid",
         parentPhone: student.parentPhone,
         paymentStatus: student.paymentStatus,
+        paymentMarkedBy: student.paymentMarkedBy,
       };
 
       if (!isPaid) {
@@ -133,6 +134,7 @@ exports.getPaidStudents = async (req, res) => {
         status: isPaid ? "paid" : "not-paid",
         parentPhone: student.parentPhone,
         paymentStatus: student.paymentStatus,
+        paymentMarkedBy: student.paymentMarkedBy,
       };
 
       if (!isPaid) {
@@ -216,6 +218,7 @@ exports.getUnpaidStudents = async (req, res) => {
         status: isPaid ? "paid" : "not-paid",
         parentPhone: student.parentPhone,
         paymentStatus: student.paymentStatus,
+        paymentMarkedBy: student.paymentMarkedBy,
       };
 
       if (!isPaid) {
