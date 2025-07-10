@@ -85,6 +85,170 @@ exports.getStudents = async (req, res) => {
   }
 };
 
+// @desc    Get all paid students from Google Sheets
+// @route   GET /api/students/paid
+// @access  Private
+exports.getPaidStudents = async (req, res) => {
+  try {
+    const { month: monthQuery, sheetId, page } = req.query;
+
+    if (!sheetId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "sheetId is required" });
+    }
+
+    const month =
+      monthQuery?.toUpperCase() ||
+      new Date().toLocaleString("default", { month: "short" }).toUpperCase();
+
+    const { students, hasNextPage } = await getStudentData(
+      sheetId,
+      month,
+      parseInt(page) || 1,
+      15, // limit
+      "paid"
+    );
+
+    // Transform data to match frontend expectations
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const transformedStudents = students.map((student) => {
+      const isPaid = !(
+        student.paymentStatus &&
+        student.paymentStatus.toLowerCase().includes("not")
+      );
+
+      const studentData = {
+        id: student.id,
+        name: student.name,
+        dob: student.dob,
+        paymentDate: student.paymentDate,
+        lastReminderDate: student.lastReminderDate,
+        status: isPaid ? "paid" : "not-paid",
+        parentPhone: student.parentPhone,
+        paymentStatus: student.paymentStatus,
+      };
+
+      if (!isPaid) {
+        // Calculate days from the first of the month
+        const diffTime = today.getTime() - firstDayOfMonth.getTime();
+        // Add 1 to count the first day. e.g., on the 1st, it's 1 day due.
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        studentData.paymentDue = diffDays;
+      }
+
+      return studentData;
+    });
+
+    res.status(200).json({
+      success: true,
+      count: transformedStudents.length,
+      data: transformedStudents,
+      hasNextPage,
+    });
+  } catch (error) {
+    if (error.code === "GOOGLE_AUTH_REQUIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Google Authentication is required.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
+    console.error("Error fetching students:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching student data from Google Sheets",
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get all unpaid students from Google Sheets
+// @route   GET /api/students/unpaid
+// @access  Private
+exports.getUnpaidStudents = async (req, res) => {
+  try {
+    const { month: monthQuery, sheetId, page } = req.query;
+
+    if (!sheetId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "sheetId is required" });
+    }
+
+    const month =
+      monthQuery?.toUpperCase() ||
+      new Date().toLocaleString("default", { month: "short" }).toUpperCase();
+
+    const { students, hasNextPage } = await getStudentData(
+      sheetId,
+      month,
+      parseInt(page) || 1,
+      15, // limit
+      "not-paid"
+    );
+
+    // Transform data to match frontend expectations
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const transformedStudents = students.map((student) => {
+      const isPaid = !(
+        student.paymentStatus &&
+        student.paymentStatus.toLowerCase().includes("not")
+      );
+
+      const studentData = {
+        id: student.id,
+        name: student.name,
+        dob: student.dob,
+        paymentDate: student.paymentDate,
+        lastReminderDate: student.lastReminderDate,
+        status: isPaid ? "paid" : "not-paid",
+        parentPhone: student.parentPhone,
+        paymentStatus: student.paymentStatus,
+      };
+
+      if (!isPaid) {
+        // Calculate days from the first of the month
+        const diffTime = today.getTime() - firstDayOfMonth.getTime();
+        // Add 1 to count the first day. e.g., on the 1st, it's 1 day due.
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        studentData.paymentDue = diffDays;
+      }
+
+      return studentData;
+    });
+
+    res.status(200).json({
+      success: true,
+      count: transformedStudents.length,
+      data: transformedStudents,
+      hasNextPage,
+    });
+  } catch (error) {
+    if (error.code === "GOOGLE_AUTH_REQUIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Google Authentication is required.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
+    console.error("Error fetching students:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching student data from Google Sheets",
+      error: error.message,
+    });
+  }
+};
+
 // @desc    Get spreadsheet information
 // @route   GET /api/students/spreadsheet-info
 // @access  Private

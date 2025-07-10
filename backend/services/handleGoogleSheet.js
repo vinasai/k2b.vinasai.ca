@@ -6,7 +6,13 @@ const { authorize } = require("../utils/googleOAuthEngine");
  * @param {string} spreadsheetId Your Google Sheets ID
  * @param {string} sheetName Name of the sheet (optional, defaults to first sheet)
  */
-async function getStudentData(spreadsheetId, month, page = 1, limit = 15) {
+async function getStudentData(
+  spreadsheetId,
+  month,
+  page = 1,
+  limit = 15,
+  status = "all"
+) {
   const auth = await authorize();
   if (!auth) {
     const error = new Error("Google Authorization is required.");
@@ -29,21 +35,54 @@ async function getStudentData(spreadsheetId, month, page = 1, limit = 15) {
     return { students: allStudents, hasNextPage: false };
   }
 
+  // If filtering by status, we must fetch all data and paginate manually.
+  // This is less efficient for large sheets but necessary for correct pagination.
+  if (status !== "all") {
+    const allStudents = await getStudentPaymentData(
+      auth,
+      spreadsheetId,
+      targetSheetName,
+      0 // Fetch all
+    );
+
+    const filteredStudents = allStudents.filter((student) => {
+      const isPaid = !(
+        student.paymentStatus &&
+        student.paymentStatus.toLowerCase().includes("not")
+      );
+      const studentStatus = isPaid ? "paid" : "not-paid";
+      return studentStatus === status;
+    });
+
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
+    const hasNextPage = filteredStudents.length > endIndex;
+
+    console.log(
+      `Found ${filteredStudents.length} ${status} students, returning page ${page} with ${paginatedStudents.length} students`
+    );
+    return { students: paginatedStudents, hasNextPage };
+  }
+
   console.log(`Reading from sheet: ${targetSheetName} for page: ${page}`);
 
-  // Fetch limit + 1 rows to check if there's a next page
+  // For "all" status, we fetch one extra item to see if there's a next page.
   const studentsWithExtra = await getStudentPaymentData(
     auth,
     spreadsheetId,
     targetSheetName,
     page,
-    limit
+    limit,
+    true // fetch one extra
   );
 
   const hasNextPage = studentsWithExtra.length > limit;
-  const students = studentsWithExtra.slice(0, limit);
+  const students = studentsWithExtra.slice(0, limit); // Return only the students for the current page
 
-  console.log(`Found ${students.length} students for page ${page}`);
+  console.log(
+    `Found ${students.length} students for page ${page}, hasNextPage: ${hasNextPage}`
+  );
   return { students, hasNextPage };
 }
 
@@ -58,22 +97,27 @@ async function getStudentPaymentData(
   spreadsheetId,
   sheetName,
   page = 1,
-  limit = 15
+  limit = 15,
+  fetchExtraForNextPageCheck = false
 ) {
   try {
     const sheets = google.sheets({ version: "v4", auth });
     let range;
+    const fetchLimit = fetchExtraForNextPageCheck ? limit + 1 : limit;
 
     if (page > 0) {
-      // Calculate the range for the current page.
-      // Fetch one extra row to determine if there's a next page.
-      const startRow = (page - 1) * limit + 2;
-      const endRow = startRow + limit;
+      // Calculate the range for the current page. `limit` is the page size.
+      const startRow = (page - 1) * limit + 2; // +2 because row 1 is headers
+      const endRow = startRow + fetchLimit - 1;
       range = `${sheetName}!A${startRow}:H${endRow}`;
     } else {
-      // Fetch all rows for stats
+      // Fetch all rows for stats or filtering
       range = `${sheetName}!A2:H`;
     }
+
+    console.log(
+      `Fetching range: ${range} for page ${page} with limit ${limit}`
+    );
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
@@ -86,7 +130,7 @@ async function getStudentPaymentData(
       return [];
     }
 
-    return rows
+    const students = rows
       .map((row) => {
         // Basic validation: ensure the row has a name and dob.
         if (!row[0] || !row[1]) {
@@ -108,6 +152,9 @@ async function getStudentPaymentData(
         };
       })
       .filter(Boolean); // Filter out any null entries
+
+    console.log(`Found ${students.length} students from range ${range}`);
+    return students;
   } catch (error) {
     if (error.code === 400) {
       console.warn(`Sheet "${sheetName}" not found. Returning empty array.`);

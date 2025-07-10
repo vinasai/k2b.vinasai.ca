@@ -163,7 +163,15 @@ export default function Sidebar({
                         onClick={() => setShowClassPicker(!showClassPicker)}
                         className="text-sm text-blue-400 font-medium flex items-center gap-2"
                       >
-                        <span>Class: {selectedClass?.className}</span>
+                        <span>
+                          Class:{" "}
+                          {selectedClass?.className
+                            ? selectedClass.className.length > 17
+                              ? `${selectedClass.className.slice(0, 17)}...`
+                              : selectedClass.className
+                            : ""}
+                        </span>
+
                         <svg
                           className={`w-4 h-4 transition-transform duration-200 ${
                             showClassPicker ? "rotate-180" : ""

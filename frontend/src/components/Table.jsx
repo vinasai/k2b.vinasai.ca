@@ -1,25 +1,52 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 export default function Table({
   students,
   setStudents,
   onPersistToggle,
-  loading = false,
+  studentsLoading = false,
+  isInitialLoading = false,
+  statsLoading = false,
   isPageLoading = false,
   stats,
-  currentPage,
-  setCurrentPage,
   hasNextPage,
+  onLoadMore,
+  filter,
+  onFilterChange,
 }) {
-  const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [toggledStudents, setToggledStudents] = useState({});
+  const [originalFilterStatus, setOriginalFilterStatus] = useState({});
   const perPage = 15;
 
-  // When the source students for the page change, clear local toggles.
+  // For infinite scroll
+  const observer = useRef();
+  const lastStudentElementRef = useCallback(
+    (node) => {
+      if (isPageLoading) return;
+      if (observer.current) observer.current.disconnect();
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasNextPage) {
+          onLoadMore();
+        }
+      });
+      if (node) observer.current.observe(node);
+    },
+    [isPageLoading, hasNextPage]
+  );
+
+  // When the source students for the page change or filter changes,
+  // clear local toggles and capture the original status for filtering
   useEffect(() => {
     setToggledStudents({});
-  }, [students]);
+
+    // Capture the original status of each student for the current filter view
+    const originalStatus = {};
+    students.forEach((student) => {
+      originalStatus[student.id] = student.status;
+    });
+    setOriginalFilterStatus(originalStatus);
+  }, [students, filter]);
 
   const applyPendingToggles = () => {
     if (Object.keys(toggledStudents).length === 0) return;
@@ -40,7 +67,7 @@ export default function Table({
 
   const handleFilterChange = (newFilter) => {
     applyPendingToggles();
-    setFilter(newFilter);
+    onFilterChange(newFilter);
   };
 
   const handleToggle = async (studentId, studentName, dob) => {
@@ -73,41 +100,12 @@ export default function Table({
     }
   };
 
-  const totalPages = Math.ceil(stats.total / perPage);
-
-  const getPaginationNumbers = () => {
-    if (totalPages <= 1) return [];
-    const window = 1; // Pages to show around current page
-    const pages = [];
-    for (let i = 1; i <= totalPages; i++) {
-      if (
-        i === 1 ||
-        i === totalPages ||
-        (i >= currentPage - window && i <= currentPage + window)
-      ) {
-        pages.push(i);
-      }
-    }
-    const withDots = [];
-    let lastPage = 0;
-    for (const page of pages) {
-      if (lastPage !== 0 && page - lastPage > 1) {
-        withDots.push("...");
-      }
-      withDots.push(page);
-      lastPage = page;
-    }
-    return withDots;
-  };
-
-  const paginationNumbers = getPaginationNumbers();
-
-  // The list used for rendering is now filtered from the current page's students
+  // The list used for rendering is now filtered based on original status
   const filteredStudents = students.filter((s) => {
-    // Apply local toggles for instant feedback before filtering
-    const displayStatus = toggledStudents[s.id] || s.status;
+    // Use the original status for filtering to keep students in view
+    const filterStatus = originalFilterStatus[s.id] || s.status;
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = filter === "all" || displayStatus === filter;
+    const matchesFilter = filter === "all" || filterStatus === filter;
     return matchesSearch && matchesFilter;
   });
 
@@ -137,7 +135,7 @@ export default function Table({
   return (
     <>
       <div className="grid grid-cols-3 gap-2 sm:gap-4 p-4 border-b border-gray-700">
-        {loading ? (
+        {statsLoading ? (
           <>
             <StatsCardSkeleton />
             <StatsCardSkeleton />
@@ -195,7 +193,7 @@ export default function Table({
               onChange={(e) => {
                 setSearch(e.target.value);
               }}
-              disabled={loading}
+              disabled={studentsLoading}
             />
           </div>
           <div className="flex mt-3 sm:mt-0 sm:ml-4 bg-gray-800 rounded-lg overflow-hidden flex-wrap justify-center">
@@ -203,7 +201,7 @@ export default function Table({
               <button
                 key={f}
                 onClick={() => handleFilterChange(f)}
-                disabled={loading}
+                disabled={studentsLoading}
                 className={`px-4 py-1.5 font-medium text-sm transition flex-grow sm:flex-grow-0 ${
                   filter === f
                     ? f === "all"
@@ -212,7 +210,7 @@ export default function Table({
                       ? "bg-green-500 text-white"
                       : "bg-red-500 text-white"
                     : "text-gray-300 hover:bg-gray-700"
-                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                } ${studentsLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 {f === "all" ? "All" : f === "paid" ? "Paid" : "Unpaid"}
               </button>
@@ -221,8 +219,11 @@ export default function Table({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 sm:p-4 custom-scrollbar">
-        {isPageLoading ? (
+      <div
+        className="flex-1 overflow-y-auto p-2 sm:p-4 custom-scrollbar"
+        style={{ minHeight: "400px" }}
+      >
+        {isInitialLoading ? (
           <div className="space-y-2">
             {[...Array(10)].map((_, i) => (
               <StudentRowSkeleton key={i} />
@@ -237,14 +238,17 @@ export default function Table({
           </div>
         ) : (
           <div className="space-y-2">
-            {filteredStudents.map((s) => {
+            {filteredStudents.map((s, index) => {
               const isToggled = toggledStudents[s.id] !== undefined;
               const displayStatus = isToggled
                 ? toggledStudents[s.id]
                 : s.status;
 
+              const isLastElement = index === filteredStudents.length - 1;
+
               return (
                 <div
+                  ref={isLastElement ? lastStudentElementRef : null}
                   key={s.id}
                   className="flex items-center justify-between bg-gray-700 p-2 sm:p-3 rounded-lg border border-gray-600 hover:bg-gray-600 transition"
                 >
@@ -361,74 +365,38 @@ export default function Table({
                 </div>
               );
             })}
+            {isPageLoading && (
+              <>
+                <StudentRowSkeleton />
+                <StudentRowSkeleton />
+                <StudentRowSkeleton />
+              </>
+            )}
           </div>
         )}
       </div>
 
       <div className="flex items-center justify-between px-2 sm:px-4 py-2 border-t border-gray-700 bg-gray-800">
-        {loading ? (
+        {isInitialLoading ? (
           <div className="flex justify-between w-full">
             <div className="h-4 bg-gray-600 rounded w-24 animate-pulse"></div>
-            <div className="flex items-center gap-1 sm:gap-2">
-              <div className="w-8 h-8 bg-gray-600 rounded animate-pulse"></div>
-              <div className="w-8 h-8 bg-gray-600 rounded animate-pulse"></div>
-            </div>
           </div>
         ) : (
           <>
             <div className="text-sm text-gray-400">
               {stats.total > 0
-                ? `Showing ${(currentPage - 1) * perPage + 1} - ${
-                    (currentPage - 1) * perPage + students.length
-                  } of ${stats.total}`
+                ? `Showing ${filteredStudents.length} of ${
+                    filter === "all"
+                      ? stats.total
+                      : filter === "paid"
+                      ? stats.paid
+                      : stats.unpaid
+                  }`
                 : "0 of 0"}
             </div>
-            <div className="flex items-center gap-1 sm:gap-2 text-xs">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                disabled={currentPage === 1}
-                className="w-8 h-8 flex items-center justify-center text-sm bg-gray-700 border border-gray-600 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                ←
-              </button>
-
-              <div className="hidden sm:flex items-center gap-2">
-                {paginationNumbers.map((pageNumber, index) =>
-                  pageNumber === "..." ? (
-                    <span
-                      key={`dots-${index}`}
-                      className="px-2 py-1 text-gray-400"
-                    >
-                      ...
-                    </span>
-                  ) : (
-                    <button
-                      key={pageNumber}
-                      onClick={() => setCurrentPage(pageNumber)}
-                      className={`w-8 h-8 flex items-center justify-center rounded ${
-                        currentPage === pageNumber
-                          ? "bg-blue-500 text-white"
-                          : "bg-gray-700 border border-gray-600 hover:bg-gray-600 text-gray-300"
-                      }`}
-                    >
-                      {pageNumber}
-                    </button>
-                  )
-                )}
-              </div>
-
-              <span className="sm:hidden text-gray-400 px-2">
-                {currentPage} / {totalPages}
-              </span>
-
-              <button
-                onClick={() => setCurrentPage((p) => p + 1)}
-                disabled={!hasNextPage}
-                className="w-8 h-8 flex items-center justify-center text-sm bg-gray-700 border border-gray-600 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                →
-              </button>
-            </div>
+            {!hasNextPage && students.length > 0 && (
+              <div className="text-sm text-gray-500">End of list</div>
+            )}
           </>
         )}
       </div>

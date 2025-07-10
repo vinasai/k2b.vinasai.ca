@@ -10,7 +10,8 @@ export default function Dashboard() {
 
   const [students, setStudents] = useState([]);
   const [stats, setStats] = useState({ total: 0, paid: 0, unpaid: 0 });
-  const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [studentsLoading, setStudentsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -19,13 +20,15 @@ export default function Dashboard() {
   );
   const [selectedClass, setSelectedClass] = useState(null);
   const [classes, setClasses] = useState([]);
+  const [filter, setFilter] = useState("all");
 
-  // Pagination and caching state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pagesCache, setPagesCache] = useState({});
   const [hasNextPage, setHasNextPage] = useState(false);
-  const [isPageLoading, setIsPageLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  const isInitialLoad = statsLoading || (studentsLoading && currentPage === 1);
+
+  // Initialize classes
   useEffect(() => {
     if (user?.role === "admin") {
       api.get("/class").then((res) => {
@@ -46,81 +49,99 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  const fetchPageData = async (page, month, sheetId) => {
-    if (!sheetId || isPageLoading) return;
-
-    const cacheKey = `${sheetId}-${month}`;
-    if (pagesCache[cacheKey] && pagesCache[cacheKey][page]) {
-      const cachedPage = pagesCache[cacheKey][page];
-      setStudents(cachedPage.students);
-      setHasNextPage(cachedPage.hasNextPage);
-      return;
-    }
-
-    setIsPageLoading(true);
-    setError(null);
-
-    try {
-      const { data } = await api.get(
-        `/students?month=${month}&sheetId=${sheetId}&page=${page}`
-      );
-      if (data.success) {
-        setStudents(data.data);
-        setHasNextPage(data.hasNextPage);
-        setPagesCache((prev) => ({
-          ...prev,
-          [cacheKey]: {
-            ...prev[cacheKey],
-            [page]: { students: data.data, hasNextPage: data.hasNextPage },
-          },
-        }));
-      }
-    } catch (err) {
-      console.error("Failed to fetch page data:", err);
-      setError("Failed to load student data. Please try again later.");
-    } finally {
-      if (loading) setLoading(false);
-      setIsPageLoading(false);
-    }
-  };
-
-  // Fetch stats separately, as it requires scanning the whole sheet.
-  // This can be optimized on the backend later if needed.
-  const fetchStats = async (month, sheetId) => {
-    if (!sheetId) return;
-    try {
-      const { data } = await api.get(
-        `/students/stats?month=${month}&sheetId=${sheetId}`
-      );
-      if (data.success) {
-        setStats(data.data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch stats:", err);
-    }
-  };
-
-  // Reset pagination and cache when month or class changes
+  // Reset when month or class changes
   useEffect(() => {
     setCurrentPage(1);
-    setPagesCache({});
-    setStudents([]);
-    setStats({ total: 0, paid: 0, unpaid: 0 });
+    setStudentsLoading(true);
+    setStatsLoading(true); // Only set stats loading when month/class changes
+  }, [selectedMonth, selectedClass]);
+
+  // Reset only pagination when filter changes (NOT stats loading)
+  useEffect(() => {
+    setCurrentPage(1);
+    setStudentsLoading(true);
+    // Don't set statsLoading here - stats don't change with filter
+  }, [filter]);
+
+  // Fetch data
+  useEffect(() => {
+    if (!selectedClass?.sheetId) return;
+
+    const fetchData = async () => {
+      // Set loading states
+      if (currentPage === 1) {
+        // studentsLoading is already set by the effects above
+      } else {
+        setLoadingMore(true);
+      }
+      setError(null);
+
+      try {
+        // Determine endpoint based on filter
+        let endpoint = "/students";
+        if (filter === "paid") endpoint = "/students/paid";
+        else if (filter === "not-paid") endpoint = "/students/unpaid";
+
+        // Fetch students
+        const { data } = await api.get(
+          `${endpoint}?month=${selectedMonth}&sheetId=${selectedClass.sheetId}&page=${currentPage}`
+        );
+
+        if (data.success) {
+          if (currentPage === 1) {
+            setStudents(data.data);
+          } else {
+            setStudents((prev) => [...prev, ...data.data]);
+          }
+          setHasNextPage(data.hasNextPage);
+        }
+
+        setStudentsLoading(false);
+        setLoadingMore(false);
+
+        // Fetch stats only when statsLoading is true (month/class changed)
+        if (statsLoading) {
+          try {
+            const statsRes = await api.get(
+              `/students/stats?month=${selectedMonth}&sheetId=${selectedClass.sheetId}`
+            );
+            if (statsRes.data.success) {
+              setStats(statsRes.data.data);
+            }
+          } catch (err) {
+            console.error("Failed to fetch stats:", err);
+          } finally {
+            setStatsLoading(false);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch data:", err);
+        setError("Failed to load data. Please try again later.");
+        if (currentPage === 1) {
+          setStudents([]);
+        }
+        setStudentsLoading(false);
+        if (statsLoading) setStatsLoading(false);
+        setLoadingMore(false);
+      }
+    };
+
+    fetchData();
+  }, [selectedMonth, selectedClass, filter, currentPage, statsLoading]);
+
+  // Save preferences
+  useEffect(() => {
+    localStorage.setItem("selectedMonth", selectedMonth);
     if (selectedClass?._id) {
       localStorage.setItem("selectedClassId", selectedClass._id);
     }
   }, [selectedMonth, selectedClass]);
 
-  // Fetch data when page, month, or class changes
-  useEffect(() => {
-    localStorage.setItem("selectedMonth", selectedMonth);
-    if (selectedClass?.sheetId) {
-      fetchPageData(currentPage, selectedMonth, selectedClass.sheetId);
-      if (currentPage === 1) {
-        fetchStats(selectedMonth, selectedClass.sheetId);
-      }
+  const loadMoreItems = () => {
+    if (hasNextPage && !loadingMore) {
+      setCurrentPage((prev) => prev + 1);
     }
-  }, [currentPage, selectedMonth, selectedClass]);
+  };
 
   const handlePaymentToggle = async (
     studentId,
@@ -128,30 +149,14 @@ export default function Dashboard() {
     dob,
     newStatus
   ) => {
+    // Optimistic update for stats
     const originalStats = { ...stats };
-    const originalStudents = [...students];
-    const originalCache = { ...pagesCache };
-
-    // Optimistic UI update
     const paidIncrement = newStatus === "paid" ? 1 : -1;
     setStats((prevStats) => ({
       ...prevStats,
       paid: prevStats.paid + paidIncrement,
       unpaid: prevStats.unpaid - paidIncrement,
     }));
-
-    const updatedStudents = students.map((s) =>
-      s.id === studentId ? { ...s, status: newStatus } : s
-    );
-    setStudents(updatedStudents);
-
-    // Optimistic cache update
-    const cacheKey = `${selectedClass.sheetId}-${selectedMonth}`;
-    if (pagesCache[cacheKey]?.[currentPage]) {
-      const newCache = JSON.parse(JSON.stringify(pagesCache));
-      newCache[cacheKey][currentPage].students = updatedStudents;
-      setPagesCache(newCache);
-    }
 
     try {
       await api.post("/students/update-status", {
@@ -164,11 +169,9 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Failed to update payment status:", err);
       setError("Failed to save payment status. The change has been reverted.");
-      // Revert UI on error
+      // Revert stats on error
       setStats(originalStats);
-      setStudents(originalStudents);
-      setPagesCache(originalCache);
-      throw err; // Re-throw for Table component to catch
+      throw err;
     }
   };
 
@@ -188,7 +191,7 @@ export default function Dashboard() {
         selectedClass={selectedClass}
         onClassChange={setSelectedClass}
       />
-      <div className="flex-1 flex flex-col ">
+      <div className="flex-1 flex flex-col">
         <header className="bg-gray-800 py-4 px-4 border-b border-gray-700 flex items-center justify-between z-10">
           <button
             className="text-gray-400 hover:text-white md:hidden"
@@ -226,12 +229,16 @@ export default function Dashboard() {
               students={students}
               setStudents={setStudents}
               onPersistToggle={handlePaymentToggle}
-              loading={loading}
-              isPageLoading={isPageLoading}
+              statsLoading={statsLoading}
+              studentsLoading={studentsLoading} // KEEP this for disabling filters
+              isInitialLoading={isInitialLoad} // ADD THIS PROP
+              isPageLoading={loadingMore}
               stats={stats}
-              currentPage={currentPage}
-              setCurrentPage={setCurrentPage}
               hasNextPage={hasNextPage}
+              onLoadMore={loadMoreItems}
+              filter={filter}
+              onFilterChange={setFilter}
+              currentPage={currentPage}
             />
           </div>
         </main>
