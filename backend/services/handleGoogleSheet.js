@@ -11,7 +11,8 @@ async function getStudentData(
   month,
   page = 1,
   limit = 15,
-  status = "all"
+  status = "all",
+  search = ""
 ) {
   const auth = await authorize();
   if (!auth) {
@@ -35,9 +36,8 @@ async function getStudentData(
     return { students: allStudents, hasNextPage: false };
   }
 
-  // If filtering by status, we must fetch all data and paginate manually.
-  // This is less efficient for large sheets but necessary for correct pagination.
-  if (status !== "all") {
+  // If filtering by status or searching, we must fetch all data and paginate manually.
+  if (status !== "all" || search) {
     const allStudents = await getStudentPaymentData(
       auth,
       spreadsheetId,
@@ -45,14 +45,24 @@ async function getStudentData(
       0 // Fetch all
     );
 
-    const filteredStudents = allStudents.filter((student) => {
-      const isPaid = !(
-        student.paymentStatus &&
-        student.paymentStatus.toLowerCase().includes("not")
+    let filteredStudents = allStudents;
+
+    if (status !== "all") {
+      filteredStudents = filteredStudents.filter((student) => {
+        const isPaid = !(
+          student.paymentStatus &&
+          student.paymentStatus.toLowerCase().includes("not")
+        );
+        const studentStatus = isPaid ? "paid" : "not-paid";
+        return studentStatus === status;
+      });
+    }
+
+    if (search) {
+      filteredStudents = filteredStudents.filter((student) =>
+        student.name.toLowerCase().includes(search.toLowerCase())
       );
-      const studentStatus = isPaid ? "paid" : "not-paid";
-      return studentStatus === status;
-    });
+    }
 
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
@@ -60,14 +70,14 @@ async function getStudentData(
     const hasNextPage = filteredStudents.length > endIndex;
 
     console.log(
-      `Found ${filteredStudents.length} ${status} students, returning page ${page} with ${paginatedStudents.length} students`
+      `Found ${filteredStudents.length} ${status} students with search '${search}', returning page ${page} with ${paginatedStudents.length} students`
     );
     return { students: paginatedStudents, hasNextPage };
   }
 
   console.log(`Reading from sheet: ${targetSheetName} for page: ${page}`);
 
-  // For "all" status, we fetch one extra item to see if there's a next page.
+  // For "all" status without search, we fetch one extra item to see if there's a next page.
   const studentsWithExtra = await getStudentPaymentData(
     auth,
     spreadsheetId,

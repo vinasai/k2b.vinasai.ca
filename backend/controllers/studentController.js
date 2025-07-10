@@ -10,7 +10,7 @@ const { generateAuthUrl, authorize } = require("../utils/googleOAuthEngine");
 // @access  Private
 exports.getStudents = async (req, res) => {
   try {
-    const { month: monthQuery, sheetId, page } = req.query;
+    const { month: monthQuery, sheetId, page, search } = req.query;
 
     if (!sheetId) {
       return res
@@ -25,7 +25,10 @@ exports.getStudents = async (req, res) => {
     const { students, hasNextPage } = await getStudentData(
       sheetId,
       month,
-      parseInt(page) || 1
+      parseInt(page) || 1,
+      15,
+      "all",
+      search
     );
 
     // Transform data to match frontend expectations
@@ -90,7 +93,7 @@ exports.getStudents = async (req, res) => {
 // @access  Private
 exports.getPaidStudents = async (req, res) => {
   try {
-    const { month: monthQuery, sheetId, page } = req.query;
+    const { month: monthQuery, sheetId, page, search } = req.query;
 
     if (!sheetId) {
       return res
@@ -107,7 +110,8 @@ exports.getPaidStudents = async (req, res) => {
       month,
       parseInt(page) || 1,
       15, // limit
-      "paid"
+      "paid",
+      search
     );
 
     // Transform data to match frontend expectations
@@ -172,7 +176,7 @@ exports.getPaidStudents = async (req, res) => {
 // @access  Private
 exports.getUnpaidStudents = async (req, res) => {
   try {
-    const { month: monthQuery, sheetId, page } = req.query;
+    const { month: monthQuery, sheetId, page, search } = req.query;
 
     if (!sheetId) {
       return res
@@ -189,7 +193,8 @@ exports.getUnpaidStudents = async (req, res) => {
       month,
       parseInt(page) || 1,
       15, // limit
-      "not-paid"
+      "not-paid",
+      search
     );
 
     // Transform data to match frontend expectations

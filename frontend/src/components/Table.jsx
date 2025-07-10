@@ -13,8 +13,9 @@ export default function Table({
   onLoadMore,
   filter,
   onFilterChange,
+  search,
+  onSearchChange,
 }) {
-  const [search, setSearch] = useState("");
   const [toggledStudents, setToggledStudents] = useState({});
   const [originalFilterStatus, setOriginalFilterStatus] = useState({});
   const perPage = 15;
@@ -104,9 +105,8 @@ export default function Table({
   const filteredStudents = students.filter((s) => {
     // Use the original status for filtering to keep students in view
     const filterStatus = originalFilterStatus[s.id] || s.status;
-    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === "all" || filterStatus === filter;
-    return matchesSearch && matchesFilter;
+    return matchesFilter;
   });
 
   const StatsCardSkeleton = () => (
@@ -191,7 +191,7 @@ export default function Table({
               className="w-full pl-10 pr-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-600 placeholder-gray-400 text-sm"
               value={search}
               onChange={(e) => {
-                setSearch(e.target.value);
+                onSearchChange(e.target.value);
               }}
               disabled={studentsLoading}
             />

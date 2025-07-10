@@ -5,6 +5,23 @@ import Table from "../components/Table";
 import { GlobalContext } from "../context/GlobalContext";
 import api from "../utils/axios";
 
+// Debounce hook
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export default function Dashboard() {
   const { user, logout } = useContext(GlobalContext);
 
@@ -21,6 +38,8 @@ export default function Dashboard() {
   const [selectedClass, setSelectedClass] = useState(null);
   const [classes, setClasses] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 500); // 500ms debounce delay
 
   const [currentPage, setCurrentPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
@@ -63,6 +82,12 @@ export default function Dashboard() {
     // Don't set statsLoading here - stats don't change with filter
   }, [filter]);
 
+  // Reset pagination when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setStudentsLoading(true);
+  }, [debouncedSearch]);
+
   // Fetch data
   useEffect(() => {
     if (!selectedClass?.sheetId) return;
@@ -82,10 +107,18 @@ export default function Dashboard() {
         if (filter === "paid") endpoint = "/students/paid";
         else if (filter === "not-paid") endpoint = "/students/unpaid";
 
+        const params = new URLSearchParams({
+          month: selectedMonth,
+          sheetId: selectedClass.sheetId,
+          page: currentPage,
+        });
+
+        if (debouncedSearch) {
+          params.append("search", debouncedSearch);
+        }
+
         // Fetch students
-        const { data } = await api.get(
-          `${endpoint}?month=${selectedMonth}&sheetId=${selectedClass.sheetId}&page=${currentPage}`
-        );
+        const { data } = await api.get(`${endpoint}?${params.toString()}`);
 
         if (data.success) {
           if (currentPage === 1) {
@@ -127,7 +160,14 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, [selectedMonth, selectedClass, filter, currentPage, statsLoading]);
+  }, [
+    selectedMonth,
+    selectedClass,
+    filter,
+    currentPage,
+    statsLoading,
+    debouncedSearch,
+  ]);
 
   // Save preferences
   useEffect(() => {
@@ -238,6 +278,8 @@ export default function Dashboard() {
               onLoadMore={loadMoreItems}
               filter={filter}
               onFilterChange={setFilter}
+              search={search}
+              onSearchChange={setSearch}
               currentPage={currentPage}
             />
           </div>
