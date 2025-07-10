@@ -19,7 +19,11 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: "https://k2b.vinasai.ca",
+    origin: [
+      "https://k2b.vinasai.ca",
+      "http://localhost:5174",
+      "http://localhost:4173",
+    ],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -103,54 +107,54 @@ mongoose
     //     console.log("Teacher user already exists.");
     //   }
 
-    const users = [
-      { name: "Basha", email: "bashak2b@gmail.com", password: "Basha123" },
-      { name: "Karun", email: "karun.k2b@gmail.com", password: "Karun123" },
-      {
-        name: "Kumaran",
-        email: "Kema_k1286@hotmail.com",
-        password: "Kumar123",
-      },
-      {
-        name: "Thameem",
-        email: "thameemabdul13@gmail.com",
-        password: "Thameem1",
-      },
-      {
-        name: "Praveen",
-        email: "Praveenmugunthan2000@gmail.com",
-        password: "Praveen1",
-      },
-      {
-        name: "Kamesh",
-        email: "kameshwarank76@gmail.com",
-        password: "Kamesh76",
-      },
-      { name: "Vimal", email: "Vimals93@outlook.com", password: "Vimal123" },
-      { name: "Vaishna", email: "vsankirthan@gmail.com", password: "Vaishna1" },
-    ];
+    // const users = [
+    //   { name: "Basha", email: "bashak2b@gmail.com", password: "Basha123" },
+    //   { name: "Karun", email: "karun.k2b@gmail.com", password: "Karun123" },
+    //   {
+    //     name: "Kumaran",
+    //     email: "Kema_k1286@hotmail.com",
+    //     password: "Kumar123",
+    //   },
+    //   {
+    //     name: "Thameem",
+    //     email: "thameemabdul13@gmail.com",
+    //     password: "Thameem1",
+    //   },
+    //   {
+    //     name: "Praveen",
+    //     email: "Praveenmugunthan2000@gmail.com",
+    //     password: "Praveen1",
+    //   },
+    //   {
+    //     name: "Kamesh",
+    //     email: "kameshwarank76@gmail.com",
+    //     password: "Kamesh76",
+    //   },
+    //   { name: "Vimal", email: "Vimals93@outlook.com", password: "Vimal123" },
+    //   { name: "Vaishna", email: "vsankirthan@gmail.com", password: "Vaishna1" },
+    // ];
 
-    async function createTeachers() {
-      for (const user of users) {
-        const role = "teacher";
-        const existing = await User.findOne({ email: user.email, role });
-        if (!existing) {
-          await User.create({
-            name: user.name,
-            email: user.email,
-            role,
-            password: user.password,
-          });
-          console.log(
-            `✅ Created user: ${user.email} | Password: ${user.password}`
-          );
-        } else {
-          console.log(`ℹ️ User already exists: ${user.email}`);
-        }
-      }
-    }
+    // async function createTeachers() {
+    //   for (const user of users) {
+    //     const role = "teacher";
+    //     const existing = await User.findOne({ email: user.email, role });
+    //     if (!existing) {
+    //       await User.create({
+    //         name: user.name,
+    //         email: user.email,
+    //         role,
+    //         password: user.password,
+    //       });
+    //       console.log(
+    //         `✅ Created user: ${user.email} | Password: ${user.password}`
+    //       );
+    //     } else {
+    //       console.log(`ℹ️ User already exists: ${user.email}`);
+    //     }
+    //   }
+    // }
 
-    await createTeachers();
+    // await createTeachers();
   })
 
   .catch((err) => console.error("MongoDB connection error:", err));

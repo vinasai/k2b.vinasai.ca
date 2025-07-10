@@ -5,15 +5,18 @@ export default function Table({
   setStudents,
   onPersistToggle,
   loading = false,
+  isPageLoading = false,
   stats,
+  currentPage,
+  setCurrentPage,
+  hasNextPage,
 }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const [toggledStudents, setToggledStudents] = useState({});
-  const perPage = 12;
+  const perPage = 15;
 
-  // When the source data changes (e.g., after a fresh API fetch), clear local toggles.
+  // When the source students for the page change, clear local toggles.
   useEffect(() => {
     setToggledStudents({});
   }, [students]);
@@ -23,8 +26,8 @@ export default function Table({
 
     // Create a new students array with the toggled statuses applied
     const updatedStudents = students.map((s) => {
-      if (toggledStudents[s.name]) {
-        return { ...s, status: toggledStudents[s.name] };
+      if (toggledStudents[s.id]) {
+        return { ...s, status: toggledStudents[s.id] };
       }
       return s;
     });
@@ -38,16 +41,15 @@ export default function Table({
   const handleFilterChange = (newFilter) => {
     applyPendingToggles();
     setFilter(newFilter);
-    setPage(1);
   };
 
-  const handleToggle = async (studentName) => {
-    const originalStudent = students.find((s) => s.name === studentName);
+  const handleToggle = async (studentId, studentName, dob) => {
+    const originalStudent = students.find((s) => s.id === studentId);
     if (!originalStudent) return;
 
     // Determine the state before this toggle operation
     const statusBeforeToggle =
-      toggledStudents[studentName] || originalStudent.status;
+      toggledStudents[studentId] || originalStudent.status;
 
     // Determine the new status
     const newStatus = statusBeforeToggle === "paid" ? "not-paid" : "paid";
@@ -55,31 +57,59 @@ export default function Table({
     // Update the local visual state optimistically
     setToggledStudents((prev) => ({
       ...prev,
-      [studentName]: newStatus,
+      [studentId]: newStatus,
     }));
 
     try {
       // Notify the parent to persist the change
-      await onPersistToggle(studentName, newStatus);
+      await onPersistToggle(studentId, studentName, dob, newStatus);
     } catch (error) {
       // If persistence fails, revert the optimistic UI change.
       // The error message is already set by the parent component.
       setToggledStudents((prev) => ({
         ...prev,
-        [studentName]: statusBeforeToggle,
+        [studentId]: statusBeforeToggle,
       }));
     }
   };
 
-  // The list used for rendering is now based on the original students prop
-  const filtered = students.filter((s) => {
+  const totalPages = Math.ceil(stats.total / perPage);
+
+  const getPaginationNumbers = () => {
+    if (totalPages <= 1) return [];
+    const window = 1; // Pages to show around current page
+    const pages = [];
+    for (let i = 1; i <= totalPages; i++) {
+      if (
+        i === 1 ||
+        i === totalPages ||
+        (i >= currentPage - window && i <= currentPage + window)
+      ) {
+        pages.push(i);
+      }
+    }
+    const withDots = [];
+    let lastPage = 0;
+    for (const page of pages) {
+      if (lastPage !== 0 && page - lastPage > 1) {
+        withDots.push("...");
+      }
+      withDots.push(page);
+      lastPage = page;
+    }
+    return withDots;
+  };
+
+  const paginationNumbers = getPaginationNumbers();
+
+  // The list used for rendering is now filtered from the current page's students
+  const filteredStudents = students.filter((s) => {
+    // Apply local toggles for instant feedback before filtering
+    const displayStatus = toggledStudents[s.id] || s.status;
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = filter === "all" || s.status === filter;
+    const matchesFilter = filter === "all" || displayStatus === filter;
     return matchesSearch && matchesFilter;
   });
-
-  const totalPages = Math.ceil(filtered.length / perPage);
-  const pageData = filtered.slice((page - 1) * perPage, page * perPage);
 
   const StatsCardSkeleton = () => (
     <div className="bg-gray-700 px-2 sm:px-4 py-2 rounded-lg border border-gray-600 text-center animate-pulse">
@@ -164,7 +194,6 @@ export default function Table({
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
-                setPage(1);
               }}
               disabled={loading}
             />
@@ -193,27 +222,30 @@ export default function Table({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 sm:p-4 custom-scrollbar">
-        {loading ? (
+        {isPageLoading ? (
           <div className="space-y-2">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <StudentRowSkeleton key={i} />
             ))}
           </div>
-        ) : pageData.length === 0 ? (
-          <div className="text-center text-gray-400 py-12">
-            No students found
+        ) : filteredStudents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center text-blue-300">
+            <div className="text-2xl font-semibold mb-2">No students found</div>
+            <div className="text-base text-blue-200 opacity-80">
+              Try adjusting your filters or search to find students.
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
-            {pageData.map((s) => {
-              const isToggled = toggledStudents[s.name] !== undefined;
+            {filteredStudents.map((s) => {
+              const isToggled = toggledStudents[s.id] !== undefined;
               const displayStatus = isToggled
-                ? toggledStudents[s.name]
+                ? toggledStudents[s.id]
                 : s.status;
 
               return (
                 <div
-                  key={s.name}
+                  key={s.id}
                   className="flex items-center justify-between bg-gray-700 p-2 sm:p-3 rounded-lg border border-gray-600 hover:bg-gray-600 transition"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -244,6 +276,9 @@ export default function Table({
                           {displayStatus === "paid"
                             ? `Paid: ${s.paymentDate}`
                             : `Due: ${s.paymentDue} days`}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          DOB: {s.dob}
                         </div>
                         {displayStatus !== "paid" && s.paymentDue && (
                           <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
@@ -301,7 +336,7 @@ export default function Table({
                       )}
                     </span>
                     <div
-                      onClick={() => handleToggle(s.name)}
+                      onClick={() => handleToggle(s.id, s.name, s.dob)}
                       className={`w-7 h-7 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
                         displayStatus === "paid"
                           ? "bg-green-500 border border-green-500"
@@ -335,54 +370,60 @@ export default function Table({
           <div className="flex justify-between w-full">
             <div className="h-4 bg-gray-600 rounded w-24 animate-pulse"></div>
             <div className="flex items-center gap-1 sm:gap-2">
-              {[...Array(3)].map((_, i) => (
-                <div
-                  key={i}
-                  className="w-8 h-8 bg-gray-600 rounded animate-pulse"
-                ></div>
-              ))}
+              <div className="w-8 h-8 bg-gray-600 rounded animate-pulse"></div>
+              <div className="w-8 h-8 bg-gray-600 rounded animate-pulse"></div>
             </div>
           </div>
         ) : (
           <>
             <div className="text-sm text-gray-400">
-              <span className="hidden sm:inline">
-                Showing {Math.min((page - 1) * perPage + 1, filtered.length)} -{" "}
-                {Math.min(page * perPage, filtered.length)} of
-              </span>{" "}
-              {filtered.length}
+              {stats.total > 0
+                ? `Showing ${(currentPage - 1) * perPage + 1} - ${
+                    (currentPage - 1) * perPage + students.length
+                  } of ${stats.total}`
+                : "0 of 0"}
             </div>
             <div className="flex items-center gap-1 sm:gap-2 text-xs">
               <button
-                onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                disabled={page === 1}
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
                 className="w-8 h-8 flex items-center justify-center text-sm bg-gray-700 border border-gray-600 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ←
               </button>
+
               <div className="hidden sm:flex items-center gap-2">
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .slice(Math.max(0, page - 3), page + 2)
-                  .map((n) => (
+                {paginationNumbers.map((pageNumber, index) =>
+                  pageNumber === "..." ? (
+                    <span
+                      key={`dots-${index}`}
+                      className="px-2 py-1 text-gray-400"
+                    >
+                      ...
+                    </span>
+                  ) : (
                     <button
-                      key={n}
-                      onClick={() => setPage(n)}
+                      key={pageNumber}
+                      onClick={() => setCurrentPage(pageNumber)}
                       className={`w-8 h-8 flex items-center justify-center rounded ${
-                        page === n
+                        currentPage === pageNumber
                           ? "bg-blue-500 text-white"
                           : "bg-gray-700 border border-gray-600 hover:bg-gray-600 text-gray-300"
                       }`}
                     >
-                      {n}
+                      {pageNumber}
                     </button>
-                  ))}
+                  )
+                )}
               </div>
+
               <span className="sm:hidden text-gray-400 px-2">
-                {page} / {totalPages}
+                {currentPage} / {totalPages}
               </span>
+
               <button
-                onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
-                disabled={page === totalPages}
+                onClick={() => setCurrentPage((p) => p + 1)}
+                disabled={!hasNextPage}
                 className="w-8 h-8 flex items-center justify-center text-sm bg-gray-700 border border-gray-600 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 →

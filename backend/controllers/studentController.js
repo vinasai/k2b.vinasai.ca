@@ -10,7 +10,7 @@ const { generateAuthUrl, authorize } = require("../utils/googleOAuthEngine");
 // @access  Private
 exports.getStudents = async (req, res) => {
   try {
-    const { month: monthQuery, sheetId } = req.query;
+    const { month: monthQuery, sheetId, page } = req.query;
 
     if (!sheetId) {
       return res
@@ -22,7 +22,11 @@ exports.getStudents = async (req, res) => {
       monthQuery?.toUpperCase() ||
       new Date().toLocaleString("default", { month: "short" }).toUpperCase();
 
-    const students = await getStudentData(sheetId, month);
+    const { students, hasNextPage } = await getStudentData(
+      sheetId,
+      month,
+      parseInt(page) || 1
+    );
 
     // Transform data to match frontend expectations
     const today = new Date();
@@ -35,7 +39,9 @@ exports.getStudents = async (req, res) => {
       );
 
       const studentData = {
+        id: student.id,
         name: student.name,
+        dob: student.dob,
         paymentDate: student.paymentDate,
         lastReminderDate: student.lastReminderDate,
         status: isPaid ? "paid" : "not-paid",
@@ -58,6 +64,7 @@ exports.getStudents = async (req, res) => {
       success: true,
       count: transformedStudents.length,
       data: transformedStudents,
+      hasNextPage,
     });
   } catch (error) {
     if (error.code === "GOOGLE_AUTH_REQUIRED") {
@@ -134,7 +141,10 @@ exports.getStudentStats = async (req, res) => {
       monthQuery?.toUpperCase() ||
       new Date().toLocaleString("default", { month: "short" }).toUpperCase();
 
-    const students = await getStudentData(sheetId, month);
+    // Fetch all students for stats calculation by passing page 0
+    const { students } = await getStudentData(sheetId, month, 0);
+
+    console.log(students);
 
     const stats = {
       total: students.length,
@@ -142,7 +152,7 @@ exports.getStudentStats = async (req, res) => {
         (s) => s.paymentStatus && !s.paymentStatus.toLowerCase().includes("not")
       ).length,
       unpaid: students.filter(
-        (s) => s.paymentStatus && s.paymentStatus.toLowerCase().includes("not")
+        (s) => !s.paymentStatus || s.paymentStatus.toLowerCase().includes("not")
       ).length,
     };
 
@@ -173,13 +183,13 @@ exports.getStudentStats = async (req, res) => {
 // @route   POST /api/students/update-status
 // @access  Private
 exports.updateStudentStatus = async (req, res) => {
-  const { studentName, newStatus, month, sheetId } = req.body;
+  const { studentName, dob, newStatus, month, sheetId } = req.body;
 
-  if (!studentName || !newStatus || !month || !sheetId) {
+  if (!studentName || !dob || !newStatus || !month || !sheetId) {
     return res.status(400).json({
       success: false,
       message:
-        "Missing required fields: studentName, newStatus, month, sheetId",
+        "Missing required fields: studentName, dob, newStatus, month, sheetId",
     });
   }
 
@@ -189,6 +199,7 @@ exports.updateStudentStatus = async (req, res) => {
     const success = await updateStudentPaymentStatus(
       sheetId,
       studentName,
+      dob,
       newStatus,
       month.toUpperCase()
     );
