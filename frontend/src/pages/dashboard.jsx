@@ -280,7 +280,7 @@ export default function Dashboard() {
               onFilterChange={setFilter}
               search={search}
               onSearchChange={setSearch}
-              currentPage={currentPage}
+              month={selectedMonth}
             />
           </div>
         </main>

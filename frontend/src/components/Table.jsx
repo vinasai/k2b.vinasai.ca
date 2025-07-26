@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useContext,
+} from "react";
+import { GlobalContext } from "../context/GlobalContext";
 
 export default function Table({
   students,
@@ -15,7 +22,9 @@ export default function Table({
   onFilterChange,
   search,
   onSearchChange,
+  month,
 }) {
+  const { user } = useContext(GlobalContext);
   const [toggledStudents, setToggledStudents] = useState({});
   const [originalFilterStatus, setOriginalFilterStatus] = useState({});
   const perPage = 15;
@@ -37,7 +46,6 @@ export default function Table({
   );
 
   // When the source students for the page change or filter changes,
-  // clear local toggles and capture the original status for filtering
   useEffect(() => {
     setToggledStudents({});
 
@@ -48,6 +56,39 @@ export default function Table({
     });
     setOriginalFilterStatus(originalStatus);
   }, [students, filter]);
+
+  const monthMap = {
+    JAN: 0,
+    FEB: 1,
+    MAR: 2,
+    APR: 3,
+    MAY: 4,
+    JUN: 5,
+    JUL: 6,
+    AUG: 7,
+    SEP: 8,
+    OCT: 9,
+    NOV: 10,
+    DEC: 11,
+  };
+
+  const calculateDueDays = (monthName) => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonthIndex = today.getMonth();
+    const selectedMonthIndex = monthMap[monthName];
+
+    if (selectedMonthIndex < currentMonthIndex) {
+      const firstOfMonth = new Date(currentYear, selectedMonthIndex, 1);
+      const msPerDay = 1000 * 60 * 60 * 24;
+
+      return Math.floor((today - firstOfMonth) / msPerDay);
+    } else if (selectedMonthIndex === currentMonthIndex) {
+      return today.getDate();
+    } else {
+      return 0;
+    }
+  };
 
   const applyPendingToggles = () => {
     if (Object.keys(toggledStudents).length === 0) return;
@@ -77,27 +118,43 @@ export default function Table({
 
     // Determine the state before this toggle operation
     const statusBeforeToggle =
-      toggledStudents[studentId] || originalStudent.status;
+      toggledStudents[studentId]?.status || originalStudent.status;
 
     // Determine the new status
     const newStatus = statusBeforeToggle === "paid" ? "not-paid" : "paid";
+    const newPaymentDate =
+      newStatus === "paid" ? new Date().toLocaleDateString("en-GB") : "";
+    const markedBy = newStatus === "paid" ? user?.name || "" : "";
+
+    const previousToggleState = toggledStudents[studentId];
 
     // Update the local visual state optimistically
     setToggledStudents((prev) => ({
       ...prev,
-      [studentId]: newStatus,
+      [studentId]: {
+        status: newStatus,
+        paymentDate: newPaymentDate,
+        markedBy: markedBy,
+        paymentDue:
+          newStatus === "not-paid" ? calculateDueDays(month) : undefined,
+      },
     }));
 
     try {
       // Notify the parent to persist the change
-      await onPersistToggle(studentId, studentName, dob, newStatus);
+      await onPersistToggle(studentId, studentName, dob, newStatus, markedBy);
     } catch (error) {
       // If persistence fails, revert the optimistic UI change.
       // The error message is already set by the parent component.
-      setToggledStudents((prev) => ({
-        ...prev,
-        [studentId]: statusBeforeToggle,
-      }));
+      setToggledStudents((prev) => {
+        const revertedToggles = { ...prev };
+        if (previousToggleState) {
+          revertedToggles[studentId] = previousToggleState;
+        } else {
+          delete revertedToggles[studentId];
+        }
+        return revertedToggles;
+      });
     }
   };
 
@@ -240,9 +297,19 @@ export default function Table({
           <div className="space-y-2">
             {filteredStudents.map((s, index) => {
               const isToggled = toggledStudents[s.id] !== undefined;
-              const displayStatus = isToggled
-                ? toggledStudents[s.id]
-                : s.status;
+              const displayInfo = isToggled
+                ? {
+                    status: toggledStudents[s.id].status,
+                    paymentDate: toggledStudents[s.id].paymentDate,
+                    paymentMarkedBy: toggledStudents[s.id].markedBy,
+                    paymentDue: toggledStudents[s.id].paymentDue,
+                  }
+                : {
+                    status: s.status,
+                    paymentDate: s.paymentDate,
+                    paymentMarkedBy: s.paymentMarkedBy,
+                    paymentDue: s.paymentDue,
+                  };
 
               const isLastElement = index === filteredStudents.length - 1;
 
@@ -277,49 +344,54 @@ export default function Table({
                       </div>
                       <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 mt-1">
                         <div className="text-xs text-gray-400">
-                          {displayStatus === "paid"
-                            ? `Paid: ${s.paymentDate}`
-                            : `Due: ${s.paymentDue} days`}
+                          {displayInfo.status === "paid"
+                            ? `Paid: ${displayInfo.paymentDate}`
+                            : `Due: ${displayInfo.paymentDue} days`}
                         </div>
                         {/* <div className="text-xs text-gray-500">
                           DOB: {s.dob}
                         </div> */}
-                        {displayStatus === "paid" && s.paymentMarkedBy && (
-                          <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
-                            <svg
-                              className="w-3 h-3 flex-shrink-0"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            <span>Marked by: {s.paymentMarkedBy}</span>
-                          </div>
-                        )}
-                        {displayStatus !== "paid" && s.paymentDue && (
-                          <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
-                            <svg
-                              className="w-3 h-3 flex-shrink-0"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                            </svg>
-                            <span>Last notified: {s.lastReminderDate}</span>
-                          </div>
-                        )}
+                        {displayInfo.status === "paid" &&
+                          displayInfo.paymentMarkedBy && (
+                            <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
+                              <svg
+                                className="w-3 h-3 flex-shrink-0"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                              <span>
+                                Marked by: {displayInfo.paymentMarkedBy}
+                              </span>
+                            </div>
+                          )}
+                        {displayInfo.status !== "paid" &&
+                          typeof s.paymentDue === "number" &&
+                          s.lastReminderDate && (
+                            <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
+                              <svg
+                                className="w-3 h-3 flex-shrink-0"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                              </svg>
+                              <span>Last notified: {s.lastReminderDate}</span>
+                            </div>
+                          )}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                     <span
                       className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 text-xs font-medium rounded-sm ${
-                        displayStatus === "paid"
+                        displayInfo.status === "paid"
                           ? "bg-green-500 text-white"
                           : "bg-red-500 text-white"
                       }`}
                     >
-                      {displayStatus === "paid" ? (
+                      {displayInfo.status === "paid" ? (
                         <>
                           <svg
                             className="w-3.5 h-3.5 hidden sm:block"
@@ -354,12 +426,12 @@ export default function Table({
                     <div
                       onClick={() => handleToggle(s.id, s.name, s.dob)}
                       className={`w-7 h-7 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
-                        displayStatus === "paid"
+                        displayInfo.status === "paid"
                           ? "bg-green-500 border border-green-500"
                           : "bg-gray-800 border border-gray-600"
                       }`}
                     >
-                      {displayStatus === "paid" && (
+                      {displayInfo.status === "paid" && (
                         <svg
                           className="w-5 h-5 text-white"
                           fill="currentColor"

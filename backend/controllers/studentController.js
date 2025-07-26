@@ -4,6 +4,22 @@ const {
   updateStudentPaymentStatus,
 } = require("../services/handleGoogleSheet");
 const { generateAuthUrl, authorize } = require("../utils/googleOAuthEngine");
+const formatPhoneNumber = require("../utils/formatPhone");
+
+const monthMap = {
+  JAN: 0,
+  FEB: 1,
+  MAR: 2,
+  APR: 3,
+  MAY: 4,
+  JUN: 5,
+  JUL: 6,
+  AUG: 7,
+  SEP: 8,
+  OCT: 9,
+  NOV: 10,
+  DEC: 11,
+};
 
 // @desc    Get all students from Google Sheets
 // @route   GET /api/students
@@ -33,13 +49,17 @@ exports.getStudents = async (req, res) => {
 
     // Transform data to match frontend expectations
     const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const currentYear = today.getFullYear();
+    const currentMonthIndex = today.getMonth();
+    const selectedMonthIndex = monthMap[month];
 
     const transformedStudents = students.map((student) => {
       const isPaid = !(
         student.paymentStatus &&
         student.paymentStatus.toLowerCase().includes("not")
       );
+
+      const formattedPhone = formatPhoneNumber(student.parentPhone);
 
       const studentData = {
         id: student.id,
@@ -48,16 +68,31 @@ exports.getStudents = async (req, res) => {
         paymentDate: student.paymentDate,
         lastReminderDate: student.lastReminderDate,
         status: isPaid ? "paid" : "not-paid",
-        parentPhone: student.parentPhone,
+        parentPhone: formattedPhone,
         paymentStatus: student.paymentStatus,
         paymentMarkedBy: student.paymentMarkedBy,
       };
 
       if (!isPaid) {
-        // Calculate days from the first of the month
-        const diffTime = today.getTime() - firstDayOfMonth.getTime();
-        // Add 1 to count the first day. e.g., on the 1st, it's 1 day due.
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        let diffDays = 0;
+        const firstOfSelectedMonth = new Date(
+          currentYear,
+          selectedMonthIndex,
+          1
+        );
+
+        if (selectedMonthIndex < currentMonthIndex) {
+          // Past month: days from the 1st of that month until today
+          const msPerDay = 1000 * 60 * 60 * 24;
+          diffDays = Math.floor((today - firstOfSelectedMonth) / msPerDay);
+        } else if (selectedMonthIndex === currentMonthIndex) {
+          // Current month: days passed so far in this month
+          diffDays = today.getDate();
+        } else {
+          // Future month: not due yet
+          diffDays = 0;
+        }
+
         studentData.paymentDue = diffDays;
       }
 
@@ -71,6 +106,15 @@ exports.getStudents = async (req, res) => {
       hasNextPage,
     });
   } catch (error) {
+    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Your Google authentication has expired. Please log in again.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
     if (error.code === "GOOGLE_AUTH_REQUIRED") {
       const authUrl = await generateAuthUrl();
       return res.status(401).json({
@@ -117,7 +161,9 @@ exports.getPaidStudents = async (req, res) => {
 
     // Transform data to match frontend expectations
     const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const currentYear = today.getFullYear();
+    const currentMonthIndex = today.getMonth();
+    const selectedMonthIndex = monthMap[month];
 
     const transformedStudents = students.map((student) => {
       const isPaid = !(
@@ -138,10 +184,22 @@ exports.getPaidStudents = async (req, res) => {
       };
 
       if (!isPaid) {
-        // Calculate days from the first of the month
-        const diffTime = today.getTime() - firstDayOfMonth.getTime();
-        // Add 1 to count the first day. e.g., on the 1st, it's 1 day due.
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        let diffDays;
+        if (selectedMonthIndex < currentMonthIndex) {
+          // Past month: all days are due.
+          const daysInMonth = new Date(
+            currentYear,
+            selectedMonthIndex + 1,
+            0
+          ).getDate();
+          diffDays = daysInMonth;
+        } else if (selectedMonthIndex === currentMonthIndex) {
+          // Current month: days passed so far.
+          diffDays = today.getDate();
+        } else {
+          // Future month: not due yet.
+          diffDays = 0;
+        }
         studentData.paymentDue = diffDays;
       }
 
@@ -155,6 +213,15 @@ exports.getPaidStudents = async (req, res) => {
       hasNextPage,
     });
   } catch (error) {
+    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Your Google authentication has expired. Please log in again.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
     if (error.code === "GOOGLE_AUTH_REQUIRED") {
       const authUrl = await generateAuthUrl();
       return res.status(401).json({
@@ -201,7 +268,9 @@ exports.getUnpaidStudents = async (req, res) => {
 
     // Transform data to match frontend expectations
     const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const currentYear = today.getFullYear();
+    const currentMonthIndex = today.getMonth();
+    const selectedMonthIndex = monthMap[month];
 
     const transformedStudents = students.map((student) => {
       const isPaid = !(
@@ -222,10 +291,22 @@ exports.getUnpaidStudents = async (req, res) => {
       };
 
       if (!isPaid) {
-        // Calculate days from the first of the month
-        const diffTime = today.getTime() - firstDayOfMonth.getTime();
-        // Add 1 to count the first day. e.g., on the 1st, it's 1 day due.
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        let diffDays;
+        if (selectedMonthIndex < currentMonthIndex) {
+          // Past month: all days are due.
+          const daysInMonth = new Date(
+            currentYear,
+            selectedMonthIndex + 1,
+            0
+          ).getDate();
+          diffDays = daysInMonth;
+        } else if (selectedMonthIndex === currentMonthIndex) {
+          // Current month: days passed so far.
+          diffDays = today.getDate();
+        } else {
+          // Future month: not due yet.
+          diffDays = 0;
+        }
         studentData.paymentDue = diffDays;
       }
 
@@ -239,6 +320,15 @@ exports.getUnpaidStudents = async (req, res) => {
       hasNextPage,
     });
   } catch (error) {
+    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Your Google authentication has expired. Please log in again.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
     if (error.code === "GOOGLE_AUTH_REQUIRED") {
       const authUrl = await generateAuthUrl();
       return res.status(401).json({
@@ -287,6 +377,15 @@ exports.getSpreadsheetInfo = async (req, res) => {
       data: info,
     });
   } catch (error) {
+    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Your Google authentication has expired. Please log in again.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
     console.error("Error fetching spreadsheet info:", error);
     res.status(500).json({
       success: false,
@@ -333,6 +432,15 @@ exports.getStudentStats = async (req, res) => {
       data: stats,
     });
   } catch (error) {
+    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Your Google authentication has expired. Please log in again.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
     if (error.code === "GOOGLE_AUTH_REQUIRED") {
       const authUrl = await generateAuthUrl();
       return res.status(401).json({
@@ -355,7 +463,7 @@ exports.getStudentStats = async (req, res) => {
 // @route   POST /api/students/update-status
 // @access  Private
 exports.updateStudentStatus = async (req, res) => {
-  const { studentName, dob, newStatus, month, sheetId } = req.body;
+  const { studentName, dob, newStatus, month, sheetId, markedBy } = req.body;
 
   if (!studentName || !dob || !newStatus || !month || !sheetId) {
     return res.status(400).json({
@@ -373,7 +481,8 @@ exports.updateStudentStatus = async (req, res) => {
       studentName,
       dob,
       newStatus,
-      month.toUpperCase()
+      month.toUpperCase(),
+      markedBy
     );
 
     if (success) {
@@ -388,6 +497,24 @@ exports.updateStudentStatus = async (req, res) => {
       });
     }
   } catch (error) {
+    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Your Google authentication has expired. Please log in again.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
+    if (error.code === "GOOGLE_AUTH_REQUIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Google Authentication is required.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
     console.error("Error updating student status:", error);
     res.status(500).json({
       success: false,

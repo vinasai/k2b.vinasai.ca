@@ -166,6 +166,13 @@ async function getStudentPaymentData(
     console.log(`Found ${students.length} students from range ${range}`);
     return students;
   } catch (error) {
+    if (error.response?.data?.error === "invalid_grant") {
+      const authError = new Error(
+        "Google token is expired or revoked. Please re-authenticate."
+      );
+      authError.code = "GOOGLE_TOKEN_EXPIRED";
+      throw authError;
+    }
     if (error.code === 400) {
       console.warn(`Sheet "${sheetName}" not found. Returning empty array.`);
       return [];
@@ -201,6 +208,13 @@ async function getSpreadsheetInfo(auth, spreadsheetId) {
       })),
     };
   } catch (error) {
+    if (error.response?.data?.error === "invalid_grant") {
+      const authError = new Error(
+        "Google token is expired or revoked. Please re-authenticate."
+      );
+      authError.code = "GOOGLE_TOKEN_EXPIRED";
+      throw authError;
+    }
     console.error("Error getting spreadsheet info:", error);
     throw error;
   }
@@ -247,7 +261,7 @@ async function updateStudentPaymentStatus(
 
     const newPaymentStatus = newStatus === "paid" ? "PAID" : "NOT PAID";
     const newPaymentDate =
-      newStatus === "paid" ? new Date().toLocaleDateString() : "";
+      newStatus === "paid" ? new Date().toLocaleString() : "";
     const markedBy = newStatus === "paid" ? "System" : "";
 
     // Prepare data for multiple cell updates
@@ -276,8 +290,15 @@ async function updateStudentPaymentStatus(
 
     return true;
   } catch (error) {
+    if (error.response?.data?.error === "invalid_grant") {
+      const authError = new Error(
+        "Google token is expired or revoked. Please re-authenticate."
+      );
+      authError.code = "GOOGLE_TOKEN_EXPIRED";
+      throw authError;
+    }
     console.error("Error updating student status:", error);
-    return false;
+    throw error;
   }
 }
 

@@ -10,11 +10,8 @@ exports.protect = async (req, res, next) => {
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
   ) {
-    // Get token from header (Bearer token)
     token = req.headers.authorization.split(" ")[1];
-  }
-  // Check if token exists in cookies
-  else if (req.cookies && req.cookies.token) {
+  } else if (req.cookies && req.cookies.token) {
     token = req.cookies.token;
   }
 
@@ -27,13 +24,11 @@ exports.protect = async (req, res, next) => {
   }
 
   try {
-    // Verify token
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET || "your_jwt_secret"
     );
 
-    // Add user from payload to request object
     req.user = await User.findById(decoded.id);
 
     next();
@@ -62,7 +57,8 @@ exports.authorize = (...roles) => {
 exports.generateToken = (user) => {
   return jwt.sign(
     { id: user._id, role: user.role, name: user.name },
-    process.env.JWT_SECRET || "your_jwt_secret",
+    process.env.JWT_SECRET ||
+      "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6",
     { expiresIn: process.env.JWT_EXPIRE || "30d" }
   );
 };

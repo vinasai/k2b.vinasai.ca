@@ -33,12 +33,12 @@ exports.googleAuthCallback = async (req, res) => {
     await saveToken(code);
 
     // Redirect user to the frontend dashboard after successful authentication
-    const frontendUrl = process.env.FRONTEND_URL || "https://k2b.vinasai.ca";
+    const frontendUrl = process.env.FRONTEND_URL || "https://k2b.vinasai.ca/";
     res.redirect(`${frontendUrl}?google_auth=success`);
   } catch (error) {
     console.error("Error during Google Auth callback:", error);
     // Redirect to frontend with an error message
-    const frontendUrl = process.env.FRONTEND_URL || "https://k2b.vinasai.ca";
+    const frontendUrl = process.env.FRONTEND_URL || "https://k2b.vinasai.ca/";
     res.redirect(
       `${frontendUrl}/login?google_auth_error=${encodeURIComponent(
         error.message

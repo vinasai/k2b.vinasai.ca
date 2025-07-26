@@ -21,7 +21,7 @@ app.use(
   cors({
     origin: [
       "https://k2b.vinasai.ca",
-      "http://localhost:5174",
+      "http://localhost:5175",
       "http://localhost:4173",
     ],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -179,7 +179,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 5017;
+const PORT = process.env.PORT || 5018;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

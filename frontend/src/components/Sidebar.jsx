@@ -15,6 +15,8 @@ export default function Sidebar({
   const { user, loading } = useContext(GlobalContext);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallButton, setShowInstallButton] = useState(false);
   const monthPickerRef = useRef(null);
   const classPickerRef = useRef(null);
 
@@ -39,6 +41,87 @@ export default function Sidebar({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // PWA Install prompt handling
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later
+      setDeferredPrompt(e);
+      // Update UI notify the user they can install the PWA
+      setShowInstallButton(true);
+    };
+
+    const handleAppInstalled = () => {
+      // Hide the install button
+      setShowInstallButton(false);
+      // Clear the deferredPrompt
+      setDeferredPrompt(null);
+    };
+
+    // Check if app is already installed
+    const checkIfInstalled = () => {
+      // Check if running in standalone mode (installed)
+      if (window.matchMedia("(display-mode: standalone)").matches) {
+        setShowInstallButton(false);
+        return;
+      }
+
+      // Check for iOS
+      const isIOS =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        // iOS doesn't support beforeinstallprompt, but we can still show instructions
+        setShowInstallButton(true);
+      }
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    checkIfInstalled();
+
+    return () => {
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt
+      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    if (isIOS) {
+      // Show iOS-specific instructions
+      alert(
+        'To install this app on iOS:\n1. Tap the Share button\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add"'
+      );
+      return;
+    }
+
+    if (!deferredPrompt) {
+      return;
+    }
+
+    // Show the install prompt
+    deferredPrompt.prompt();
+
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+
+    if (outcome === "accepted") {
+      console.log("User accepted the install prompt");
+    } else {
+      console.log("User dismissed the install prompt");
+    }
+
+    // Clear the deferredPrompt
+    setDeferredPrompt(null);
+  };
 
   const handleClassSelect = (classItem) => {
     onClassChange(classItem);
@@ -151,116 +234,69 @@ export default function Sidebar({
                 <div className="text-sm text-gray-400 mb-1">
                   {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
                 </div>
-                {
-                  !selectedClass ? (
-                    <div
-                      className="h-4 bg-gray-600 rounded w-20 animate-pulse mt-1"
-                      data-testid="class-skeleton"
-                    ></div>
-                  ) : (
-                    <div className="relative" ref={classPickerRef}>
-                      <button
-                        onClick={() => setShowClassPicker(!showClassPicker)}
-                        className="text-sm text-blue-400 font-medium flex items-center gap-2"
+                {!selectedClass ? (
+                  <div
+                    className="h-4 bg-gray-600 rounded w-20 animate-pulse mt-1"
+                    data-testid="class-skeleton"
+                  ></div>
+                ) : (
+                  <div className="relative" ref={classPickerRef}>
+                    <button
+                      onClick={() => setShowClassPicker(!showClassPicker)}
+                      className="text-sm text-blue-400 font-medium flex items-center gap-2"
+                    >
+                      <span>
+                        Class:{" "}
+                        {selectedClass?.className
+                          ? selectedClass.className.length > 17
+                            ? `${selectedClass.className.slice(0, 17)}...`
+                            : selectedClass.className
+                          : ""}
+                      </span>
+
+                      <svg
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          showClassPicker ? "rotate-180" : ""
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        <span>
-                          Class:{" "}
-                          {selectedClass?.className
-                            ? selectedClass.className.length > 17
-                              ? `${selectedClass.className.slice(0, 17)}...`
-                              : selectedClass.className
-                            : ""}
-                        </span>
-
-                        <svg
-                          className={`w-4 h-4 transition-transform duration-200 ${
-                            showClassPicker ? "rotate-180" : ""
-                          }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </button>
-                      {showClassPicker && (
-                        <div className="absolute top-full left-0 right-0 mt-2 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-60 min-w-[250px] max-w-[400px] overflow-y-auto z-50 custom-scrollbar">
-                          <div className="flex flex-col gap-1 p-2">
-                            {classes.map((classItem) => (
-                              <button
-                                key={classItem._id}
-                                onClick={() => handleClassSelect(classItem)}
-                                className={`px-3 py-2 text-sm text-left rounded-md transition-colors duration-150 truncate ${
-                                  selectedClass?._id === classItem._id
-                                    ? "bg-blue-600 text-white font-semibold"
-                                    : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                                }`}
-                                style={{ maxWidth: "350px" }}
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    {showClassPicker && (
+                      <div className="absolute top-full left-0 right-0 mt-2 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-60 min-w-[250px] max-w-[400px] overflow-y-auto z-50 custom-scrollbar">
+                        <div className="flex flex-col gap-1 p-2">
+                          {classes.map((classItem) => (
+                            <button
+                              key={classItem._id}
+                              onClick={() => handleClassSelect(classItem)}
+                              className={`px-3 py-2 text-sm text-left rounded-md transition-colors duration-150 truncate ${
+                                selectedClass?._id === classItem._id
+                                  ? "bg-blue-600 text-white font-semibold"
+                                  : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                              }`}
+                              style={{ maxWidth: "350px" }}
+                            >
+                              <span
+                                className="truncate block w-full"
+                                title={classItem.className}
                               >
-                                <span
-                                  className="truncate block w-full"
-                                  title={classItem.className}
-                                >
-                                  {classItem.className}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
+                                {classItem.className}
+                              </span>
+                            </button>
+                          ))}
                         </div>
-                      )}
-                    </div>
-                  )
-
-                  // user?.role === "admin" ? (
-                  //   <div className="relative" ref={classPickerRef}>
-                  //     <button
-                  //       onClick={() => setShowClassPicker(!showClassPicker)}
-                  //       className="text-sm text-blue-400 font-medium flex items-center gap-2"
-                  //     >
-                  //       <span>Class: {selectedClass?.className}</span>
-                  //       <svg
-                  //         className={`w-4 h-4 transition-transform duration-200 ${
-                  //           showClassPicker ? "rotate-180" : ""
-                  //         }`}
-                  //         fill="none"
-                  //         stroke="currentColor"
-                  //         viewBox="0 0 24 24"
-                  //       >
-                  //         <path
-                  //           strokeLinecap="round"
-                  //           strokeLinejoin="round"
-                  //           strokeWidth={2}
-                  //           d="M19 9l-7 7-7-7"
-                  //         />
-                  //       </svg>
-                  //     </button>
-                  //     {showClassPicker && (
-                  //       <div className="absolute top-full left-0 right-0 mt-2 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-50 overflow-y-auto z-50 custom-scrollbar">
-                  //         <div className="flex flex-col gap-1 p-2">
-                  //           {classes.map((classItem) => (
-                  //             <button
-                  //               key={classItem._id}
-                  //               onClick={() => handleClassSelect(classItem)}
-                  //               className="px-3 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors duration-150"
-                  //             >
-                  //               {classItem.className}
-                  //             </button>
-                  //           ))}
-                  //         </div>
-                  //       </div>
-                  //     )}
-                  //   </div>
-                  // ) : (
-                  //   <div className="text-sm text-blue-400 font-medium">
-                  //     Class: {selectedClass?.className}
-                  //   </div>
-                  //)
-                }
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <button
                 onClick={onLogout}
@@ -373,6 +409,57 @@ export default function Sidebar({
             </div>
           </div>
         </div>
+
+        {/* Spacer to push install button to bottom */}
+        <div className="flex-1"></div>
+
+        {/* Install App Section */}
+        {showInstallButton && (
+          <div className="p-4 mx-4 mb-4 bg-gray-700 rounded-lg border border-gray-600">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-gray-300"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-white">
+                  Install K2B App
+                </h3>
+                <p className="text-xs text-gray-400">Add to your home screen</p>
+              </div>
+            </div>
+            <button
+              onClick={handleInstallClick}
+              className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors duration-200"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
+              Install App
+            </button>
+          </div>
+        )}
       </aside>
     </>
   );
