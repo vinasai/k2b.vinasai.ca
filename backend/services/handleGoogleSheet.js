@@ -211,8 +211,8 @@ async function updateStudentPaymentStatus(
   studentName,
   dob,
   newStatus,
-  markedBy,
-  month
+  month,
+  markedBy
 ) {
   const auth = await authorize();
   const sheets = google.sheets({ version: "v4", auth });

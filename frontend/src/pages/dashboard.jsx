@@ -187,7 +187,8 @@ export default function Dashboard() {
     studentId,
     studentName,
     dob,
-    newStatus
+    newStatus,
+    markedBy
   ) => {
     // Optimistic update for stats
     const originalStats = { ...stats };
@@ -205,6 +206,7 @@ export default function Dashboard() {
         newStatus,
         month: selectedMonth,
         sheetId: selectedClass?.sheetId,
+        markedBy,
       });
     } catch (err) {
       console.error("Failed to update payment status:", err);
