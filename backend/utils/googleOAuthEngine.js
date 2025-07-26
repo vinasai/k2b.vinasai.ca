@@ -62,7 +62,6 @@ async function saveToken(code) {
   const oAuth2Client = await getOAuth2Client();
   const { tokens } = await oAuth2Client.getToken(code);
   await fs.writeFile(TOKEN_PATH, JSON.stringify(tokens));
-  console.log("Token stored to", TOKEN_PATH);
 }
 
 /**

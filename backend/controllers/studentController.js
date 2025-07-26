@@ -415,8 +415,6 @@ exports.getStudentStats = async (req, res) => {
     // Fetch all students for stats calculation by passing page 0
     const { students } = await getStudentData(sheetId, month, 0);
 
-    console.log(students);
-
     const stats = {
       total: students.length,
       paid: students.filter(

@@ -32,7 +32,7 @@ async function getStudentData(
       targetSheetName,
       0
     );
-    console.log(`Found ${allStudents.length} total students for stats`);
+
     return { students: allStudents, hasNextPage: false };
   }
 
@@ -69,13 +69,8 @@ async function getStudentData(
     const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
     const hasNextPage = filteredStudents.length > endIndex;
 
-    console.log(
-      `Found ${filteredStudents.length} ${status} students with search '${search}', returning page ${page} with ${paginatedStudents.length} students`
-    );
     return { students: paginatedStudents, hasNextPage };
   }
-
-  console.log(`Reading from sheet: ${targetSheetName} for page: ${page}`);
 
   // For "all" status without search, we fetch one extra item to see if there's a next page.
   const studentsWithExtra = await getStudentPaymentData(
@@ -90,9 +85,6 @@ async function getStudentData(
   const hasNextPage = studentsWithExtra.length > limit;
   const students = studentsWithExtra.slice(0, limit); // Return only the students for the current page
 
-  console.log(
-    `Found ${students.length} students for page ${page}, hasNextPage: ${hasNextPage}`
-  );
   return { students, hasNextPage };
 }
 
@@ -125,10 +117,6 @@ async function getStudentPaymentData(
       range = `${sheetName}!A2:H`;
     }
 
-    console.log(
-      `Fetching range: ${range} for page ${page} with limit ${limit}`
-    );
-
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range,
@@ -136,7 +124,6 @@ async function getStudentPaymentData(
 
     const rows = res.data.values;
     if (!rows) {
-      console.log("No student data found.");
       return [];
     }
 
@@ -163,7 +150,6 @@ async function getStudentPaymentData(
       })
       .filter(Boolean); // Filter out any null entries
 
-    console.log(`Found ${students.length} students from range ${range}`);
     return students;
   } catch (error) {
     if (error.response?.data?.error === "invalid_grant") {
@@ -225,6 +211,7 @@ async function updateStudentPaymentStatus(
   studentName,
   dob,
   newStatus,
+  markedBy,
   month
 ) {
   const auth = await authorize();
@@ -252,7 +239,6 @@ async function updateStudentPaymentStatus(
     );
 
     if (studentRowIndex === -1) {
-      console.log(`Student "${studentName}" with DOB "${dob}" not found.`);
       return false;
     }
 
@@ -262,7 +248,7 @@ async function updateStudentPaymentStatus(
     const newPaymentStatus = newStatus === "paid" ? "PAID" : "NOT PAID";
     const newPaymentDate =
       newStatus === "paid" ? new Date().toLocaleString() : "";
-    const markedBy = newStatus === "paid" ? "System" : "";
+    const markedBy = newStatus === "paid" ? markedBy : "System";
 
     // Prepare data for multiple cell updates
     const updateData = [
