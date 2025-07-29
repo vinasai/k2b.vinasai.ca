@@ -319,7 +319,7 @@ export default function Sidebar({
           </div>
 
           {/* Month Selector Section */}
-          <div className="p-4 mx-4 bg-gray-700/50 rounded-lg border border-gray-600/50 backdrop-blur-sm">
+          <div className="p-4 mx-4 mb-8 bg-gray-700/50 rounded-lg border border-gray-600/50 backdrop-blur-sm">
             <div className="relative" ref={monthPickerRef}>
               <button
                 onClick={() => setShowMonthPicker(!showMonthPicker)}
@@ -371,7 +371,7 @@ export default function Sidebar({
 
               {/* Month Dropdown */}
               {showMonthPicker && (
-                <div className="absolute top-full left-0 right-0 mt-2 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-50 overflow-y-auto z-50 custom-scrollbar">
+                <div className="top-full left-0 right-0 mt-1 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-50 overflow-y-auto z-50 custom-scrollbar">
                   <div className="grid grid-cols-2 gap-1 p-2">
                     {months.map((month) => {
                       const abbr = month.substring(0, 3).toUpperCase();
@@ -407,11 +407,10 @@ export default function Sidebar({
             </div>
           </div>
         </div>
-        {/* Spacer to push install button to bottom */}
 
         {/* Install App Section */}
-        {showInstallButton && (
-          <div className="p-4 mx-4 mb-4 bg-gray-700 rounded-lg border border-gray-600 flex-shrink-0">
+        {true && (
+          <div className="mx-4 mt-2 mb-4 bg-gray-700 rounded-lg border border-gray-600 flex-shrink-0">
             <button
               onClick={handleInstallClick}
               className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors duration-200"
