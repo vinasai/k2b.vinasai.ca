@@ -317,132 +317,170 @@ export default function Table({
                 <div
                   ref={isLastElement ? lastStudentElementRef : null}
                   key={s.id}
-                  className="flex items-center justify-between bg-gray-700 p-2 sm:p-3 rounded-lg border border-gray-600 hover:bg-gray-600 transition"
+                  className="bg-gray-700 rounded-lg border border-gray-600 hover:bg-gray-600 transition"
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-8 h-8 bg-blue-500 text-white flex items-center justify-center font-semibold text-sm rounded-lg flex-shrink-0">
-                      {s.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                        <div className="text-sm font-medium text-white truncate">
-                          {s.name}
+                  <div className="flex items-center justify-between p-2 sm:p-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-8 h-8 bg-blue-500 text-white flex items-center justify-center font-semibold text-sm rounded-lg flex-shrink-0">
+                        {s.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                          <div className="text-sm font-medium text-white truncate">
+                            {s.name}
+                          </div>
+                          <div className="text-xs text-gray-400 flex items-center gap-1">
+                            <svg
+                              className="w-3 h-3"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                            </svg>
+                            {s.parentPhone}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-400 flex items-center gap-1">
+                        <div className="hidden sm:flex flex-col sm:flex-row sm:items-center sm:gap-3 mt-1">
+                          <div className="text-xs text-gray-400">
+                            {displayInfo.status === "paid"
+                              ? `Paid: ${displayInfo.paymentDate}`
+                              : `Due: ${displayInfo.paymentDue} days`}
+                          </div>
+                          {/* <div className="text-xs text-gray-500">
+                           DOB: {s.dob}
+                         </div> */}
+                          {displayInfo.status === "paid" &&
+                            displayInfo.paymentMarkedBy && (
+                              <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
+                                <svg
+                                  className="w-3 h-3 flex-shrink-0"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <span>
+                                  Marked by: {displayInfo.paymentMarkedBy}
+                                </span>
+                              </div>
+                            )}
+                          {displayInfo.status !== "paid" &&
+                            typeof s.paymentDue === "number" &&
+                            s.lastReminderDate && (
+                              <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
+                                <svg
+                                  className="w-3 h-3 flex-shrink-0"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                                </svg>
+                                <span>Last notified: {s.lastReminderDate}</span>
+                              </div>
+                            )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 text-xs font-medium rounded-sm ${
+                          displayInfo.status === "paid"
+                            ? "bg-green-500 text-white"
+                            : "bg-red-500 text-white"
+                        }`}
+                      >
+                        {displayInfo.status === "paid" ? (
+                          <>
+                            <svg
+                              className="w-3.5 h-3.5 hidden sm:block"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            Paid
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              className="w-3.5 h-3.5 hidden sm:block"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            Unpaid
+                          </>
+                        )}
+                      </span>
+                      <div
+                        onClick={() => handleToggle(s.id, s.name, s.dob)}
+                        className={`w-7 h-7 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
+                          displayInfo.status === "paid"
+                            ? "bg-green-500 border border-green-500"
+                            : "bg-gray-800 border border-gray-600"
+                        }`}
+                      >
+                        {displayInfo.status === "paid" && (
                           <svg
-                            className="w-3 h-3"
+                            className="w-5 h-5 text-white"
                             fill="currentColor"
                             viewBox="0 0 20 20"
                           >
-                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
                           </svg>
-                          {s.parentPhone}
-                        </div>
-                      </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 mt-1">
-                        <div className="text-xs text-gray-400">
-                          {displayInfo.status === "paid"
-                            ? `Paid: ${displayInfo.paymentDate}`
-                            : `Due: ${displayInfo.paymentDue} days`}
-                        </div>
-                        {/* <div className="text-xs text-gray-500">
-                          DOB: {s.dob}
-                        </div> */}
-                        {displayInfo.status === "paid" &&
-                          displayInfo.paymentMarkedBy && (
-                            <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
-                              <svg
-                                className="w-3 h-3 flex-shrink-0"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                              </svg>
-                              <span>
-                                Marked by: {displayInfo.paymentMarkedBy}
-                              </span>
-                            </div>
-                          )}
-                        {displayInfo.status !== "paid" &&
-                          typeof s.paymentDue === "number" &&
-                          s.lastReminderDate && (
-                            <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
-                              <svg
-                                className="w-3 h-3 flex-shrink-0"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                              </svg>
-                              <span>Last notified: {s.lastReminderDate}</span>
-                            </div>
-                          )}
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 text-xs font-medium rounded-sm ${
-                        displayInfo.status === "paid"
-                          ? "bg-green-500 text-white"
-                          : "bg-red-500 text-white"
-                      }`}
-                    >
+
+                  <div className="sm:hidden mt-2 pt-2 border-t border-gray-600 p-3">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                       {displayInfo.status === "paid" ? (
                         <>
-                          <svg
-                            className="w-3.5 h-3.5 hidden sm:block"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          Paid
+                          <div className="text-gray-400">Paid on</div>
+                          <div className="font-medium text-white">
+                            {displayInfo.paymentDate}
+                          </div>
+                          {displayInfo.paymentMarkedBy && (
+                            <>
+                              <div className="text-gray-400">Marked by</div>
+                              <div className="font-medium text-white truncate">
+                                {displayInfo.paymentMarkedBy}
+                              </div>
+                            </>
+                          )}
                         </>
                       ) : (
                         <>
-                          <svg
-                            className="w-3.5 h-3.5 hidden sm:block"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          Unpaid
+                          <div className="text-gray-400">Due since</div>
+                          <div className="font-medium text-white">
+                            {displayInfo.paymentDue} days
+                          </div>
+                          {s.lastReminderDate && (
+                            <>
+                              <div className="text-gray-400">Last notified</div>
+                              <div className="font-medium text-white">
+                                {s.lastReminderDate}
+                              </div>
+                            </>
+                          )}
                         </>
-                      )}
-                    </span>
-                    <div
-                      onClick={() => handleToggle(s.id, s.name, s.dob)}
-                      className={`w-7 h-7 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
-                        displayInfo.status === "paid"
-                          ? "bg-green-500 border border-green-500"
-                          : "bg-gray-800 border border-gray-600"
-                      }`}
-                    >
-                      {displayInfo.status === "paid" && (
-                        <svg
-                          className="w-5 h-5 text-white"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
                       )}
                     </div>
                   </div>
