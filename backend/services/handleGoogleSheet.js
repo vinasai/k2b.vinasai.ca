@@ -248,7 +248,7 @@ async function updateStudentPaymentStatus(
     const newPaymentStatus = newStatus === "paid" ? "PAID" : "NOT PAID";
     const newPaymentDate =
       newStatus === "paid" ? new Date().toLocaleString() : "";
-    const markedBy = newStatus === "paid" ? markedBy : "System";
+    const finalMarkedBy = newStatus === "paid" ? markedBy : "System";
 
     // Prepare data for multiple cell updates
     const updateData = [
@@ -262,7 +262,7 @@ async function updateStudentPaymentStatus(
       },
       {
         range: `${month}!H${targetRow}`, // Column H for paymentMarkedBy
-        values: [[markedBy]],
+        values: [[finalMarkedBy]],
       },
     ];
 

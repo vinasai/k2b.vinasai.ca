@@ -169,7 +169,7 @@ export default function Table({
   const StatsCardSkeleton = () => (
     <div className="bg-gray-700 px-2 sm:px-4 py-2 rounded-lg border border-gray-600 text-center animate-pulse">
       <div className="h-7 sm:h-8 bg-gray-600 rounded mb-2 mx-auto w-16"></div>
-      <div className="h-4 bg-gray-600 rounded w-24 mx-auto"></div>
+      <div className="h-4 bg-gray-600 rounded w-16 mx-auto"></div>
     </div>
   );
 

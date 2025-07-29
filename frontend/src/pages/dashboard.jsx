@@ -222,7 +222,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-gray-900 text-gray-100 overflow-hidden">
+    <div className="flex h-full w-screen bg-gray-900 text-gray-100 overflow-hidden">
       <Sidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
@@ -233,8 +233,8 @@ export default function Dashboard() {
         selectedClass={selectedClass}
         onClassChange={setSelectedClass}
       />
-      <div className="flex-1 flex flex-col">
-        <header className="bg-gray-800 py-4 px-4 border-b border-gray-700 flex items-center justify-between z-10">
+      <div className="flex-1 flex flex-col min-h-0">
+        <header className="bg-gray-800 py-4 px-4 border-b border-gray-700 flex items-center justify-between z-10 flex-shrink-0">
           <button
             className="text-gray-400 hover:text-white md:hidden"
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -255,7 +255,7 @@ export default function Dashboard() {
           </button>
           <h3 className="text-2xl font-bold">Payment Dashboard</h3>
         </header>
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 min-h-0">
           {error && (
             <div
               className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg relative mb-4"
