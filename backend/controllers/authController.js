@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const Class = require("../models/Class");
 const { generateToken } = require("../middleware/auth");
+const jwt = require("jsonwebtoken");
 
 // @desc    Login user
 // @route   POST /api/auth/login
@@ -33,7 +34,17 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    const token = generateToken(user);
+    const { accessToken, refreshToken } = generateToken(user);
+
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 90 * 24 * 60 * 60 * 1000, // 90d
+    });
 
     let classInfo = null;
     if (user.role === "teacher") {
@@ -49,7 +60,7 @@ exports.login = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      token,
+      token: accessToken,
       user: {
         id: user._id,
         name: user.name,
@@ -65,6 +76,42 @@ exports.login = async (req, res, next) => {
     res.status(500).json({
       success: false,
       message: "Server error",
+    });
+  }
+};
+
+// @desc    Refresh token
+// @route   POST /api/auth/refresh
+// @access  Public
+exports.refresh = async (req, res) => {
+  const refreshToken = req.cookies.refreshToken;
+  if (!refreshToken) {
+    return res.status(401).json({
+      success: false,
+      message: "Refresh token not found",
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET ||
+        "z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e8d7c6b5a4"
+    );
+    const user = await User.findById(decoded.id);
+
+    if (!user || user.refreshToken !== refreshToken) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid refresh token" });
+    }
+
+    const { accessToken } = generateToken(user);
+    res.status(200).json({ success: true, token: accessToken });
+  } catch (err) {
+    res.status(401).json({
+      success: false,
+      message: "Invalid refresh token",
     });
   }
 };

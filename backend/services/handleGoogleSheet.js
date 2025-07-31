@@ -242,7 +242,6 @@ async function updateStudentPaymentStatus(
       return false;
     }
 
-    // Row numbers are 1-based, and we started from A2, so add 2
     const targetRow = studentRowIndex + 2;
 
     const newPaymentStatus = newStatus === "paid" ? "PAID" : "NOT PAID";

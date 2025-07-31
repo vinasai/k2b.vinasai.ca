@@ -187,6 +187,7 @@ export default function Dashboard() {
     studentId,
     studentName,
     dob,
+    parentPhone,
     newStatus,
     markedBy
   ) => {
@@ -203,6 +204,7 @@ export default function Dashboard() {
       await api.post("/students/update-status", {
         studentName,
         dob,
+        parentPhone,
         newStatus,
         month: selectedMonth,
         sheetId: selectedClass?.sheetId,

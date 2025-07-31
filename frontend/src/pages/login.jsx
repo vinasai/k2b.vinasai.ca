@@ -5,7 +5,7 @@ import { GlobalContext } from "../context/GlobalContext.jsx";
 import logo from "../assets/logo.svg";
 
 export default function Login() {
-  const [email, setEmail] = useState("admin@example.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -53,6 +53,7 @@ export default function Login() {
       }
     } catch (err) {
       const message = err.response?.data?.message || "Login failed";
+      console.log(err);
       setError(message);
     } finally {
       setLoading(false);

@@ -1,5 +1,6 @@
 import React, { createContext, useReducer, useEffect } from "react";
 import AppReducer from "./AppReducer";
+import axiosInstance from "../utils/axios";
 
 // Initial state
 const initialState = {
@@ -20,15 +21,19 @@ export const GlobalProvider = ({ children }) => {
   function login(data) {
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
+    axiosInstance.defaults.headers.common[
+      "Authorization"
+    ] = `Bearer ${data.token}`;
     dispatch({
       type: "LOGIN_SUCCESS",
       payload: data,
     });
   }
 
-  function logout() {
+  async function logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    delete axiosInstance.defaults.headers.common["Authorization"];
     dispatch({
       type: "LOGOUT",
     });
@@ -39,6 +44,9 @@ export const GlobalProvider = ({ children }) => {
       const token = localStorage.getItem("token");
       const user = JSON.parse(localStorage.getItem("user"));
       if (token && user) {
+        axiosInstance.defaults.headers.common[
+          "Authorization"
+        ] = `Bearer ${token}`;
         dispatch({
           type: "USER_LOADED",
           payload: { token, user },

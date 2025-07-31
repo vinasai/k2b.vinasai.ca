@@ -171,6 +171,8 @@ exports.getPaidStudents = async (req, res) => {
         student.paymentStatus.toLowerCase().includes("not")
       );
 
+      const formattedPhone = formatPhoneNumber(student.parentPhone);
+
       const studentData = {
         id: student.id,
         name: student.name,
@@ -178,7 +180,7 @@ exports.getPaidStudents = async (req, res) => {
         paymentDate: student.paymentDate,
         lastReminderDate: student.lastReminderDate,
         status: isPaid ? "paid" : "not-paid",
-        parentPhone: student.parentPhone,
+        parentPhone: formattedPhone,
         paymentStatus: student.paymentStatus,
         paymentMarkedBy: student.paymentMarkedBy,
       };
@@ -467,7 +469,7 @@ exports.updateStudentStatus = async (req, res) => {
     return res.status(400).json({
       success: false,
       message:
-        "Missing required fields: studentName, dob, newStatus, month, sheetId",
+        "Missing required fields: studentName, dob,  newStatus, month, sheetId",
     });
   }
 
@@ -478,6 +480,7 @@ exports.updateStudentStatus = async (req, res) => {
       sheetId,
       studentName,
       dob,
+      //parentPhone,
       newStatus,
       month.toUpperCase(),
       markedBy

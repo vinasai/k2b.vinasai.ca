@@ -112,7 +112,7 @@ export default function Table({
     onFilterChange(newFilter);
   };
 
-  const handleToggle = async (studentId, studentName, dob) => {
+  const handleToggle = async (studentId, studentName, dob, parentPhone) => {
     const originalStudent = students.find((s) => s.id === studentId);
     if (!originalStudent) return;
 
@@ -142,7 +142,14 @@ export default function Table({
 
     try {
       // Notify the parent to persist the change
-      await onPersistToggle(studentId, studentName, dob, newStatus, markedBy);
+      await onPersistToggle(
+        studentId,
+        studentName,
+        dob,
+        parentPhone,
+        newStatus,
+        markedBy
+      );
     } catch (error) {
       // If persistence fails, revert the optimistic UI change.
       // The error message is already set by the parent component.
@@ -425,7 +432,9 @@ export default function Table({
                         )}
                       </span>
                       <div
-                        onClick={() => handleToggle(s.id, s.name, s.dob)}
+                        onClick={() =>
+                          handleToggle(s.id, s.name, s.dob, s.parentPhone)
+                        }
                         className={`w-7 h-7 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
                           displayInfo.status === "paid"
                             ? "bg-green-500 border border-green-500"
