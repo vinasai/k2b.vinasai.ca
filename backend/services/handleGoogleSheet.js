@@ -247,7 +247,7 @@ async function updateStudentPaymentStatus(
     const newPaymentStatus = newStatus === "paid" ? "PAID" : "NOT PAID";
     const newPaymentDate =
       newStatus === "paid" ? new Date().toLocaleString() : "";
-    const finalMarkedBy = newStatus === "paid" ? markedBy : "System";
+    const finalMarkedBy = newStatus === "paid" ? markedBy : "";
 
     // Prepare data for multiple cell updates
     const updateData = [
@@ -287,8 +287,146 @@ async function updateStudentPaymentStatus(
   }
 }
 
+async function updateStudentDetails(
+  spreadsheetId,
+  studentId,
+  month,
+  updatedData
+) {
+  const auth = await authorize();
+  const sheets = google.sheets({ version: "v4", auth });
+  const [nameToFind, dobToFind] = studentId.split("-");
+
+  try {
+    const range = `${month}!A2:H`;
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const rows = res.data.values;
+    if (!rows || rows.length === 0) {
+      return false;
+    }
+
+    const studentRowIndex = rows.findIndex(
+      (row) =>
+        row[0] &&
+        row[0].trim() === nameToFind.trim() &&
+        row[1]?.trim() === dobToFind.trim()
+    );
+
+    if (studentRowIndex === -1) {
+      return false;
+    }
+
+    const targetRow = studentRowIndex + 2;
+    const currentValues = rows[studentRowIndex];
+
+    const newValues = [
+      updatedData.name ?? currentValues[0],
+      updatedData.dob ?? currentValues[1],
+      updatedData.parentPhone ?? currentValues[2],
+    ];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${month}!A${targetRow}:C${targetRow}`,
+      valueInputOption: "USER_ENTERED",
+      resource: {
+        values: [newValues],
+      },
+    });
+
+    return true;
+  } catch (error) {
+    if (error.response?.data?.error === "invalid_grant") {
+      const authError = new Error(
+        "Google token is expired or revoked. Please re-authenticate."
+      );
+      authError.code = "GOOGLE_TOKEN_EXPIRED";
+      throw authError;
+    }
+    console.error("Error updating student details:", error);
+    throw error;
+  }
+}
+
+async function deleteStudentRow(spreadsheetId, studentId, month) {
+  const auth = await authorize();
+  const sheets = google.sheets({ version: "v4", auth });
+  const [nameToFind, dobToFind] = studentId.split("-");
+
+  try {
+    const range = `${month}!A2:H`;
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const rows = res.data.values;
+    if (!rows || rows.length === 0) {
+      return false;
+    }
+
+    const studentRowIndex = rows.findIndex(
+      (row) =>
+        row[0] &&
+        row[0].trim() === nameToFind.trim() &&
+        row[1]?.trim() === dobToFind.trim()
+    );
+
+    if (studentRowIndex === -1) {
+      return false;
+    }
+
+    const targetRow = studentRowIndex + 2;
+
+    const sheetInfo = await sheets.spreadsheets.get({ spreadsheetId });
+    const sheet = sheetInfo.data.sheets.find(
+      (s) => s.properties.title === month
+    );
+    if (!sheet) {
+      return false;
+    }
+    const sheetId = sheet.properties.sheetId;
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      resource: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: "ROWS",
+                startIndex: targetRow - 1,
+                endIndex: targetRow,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    return true;
+  } catch (error) {
+    if (error.response?.data?.error === "invalid_grant") {
+      const authError = new Error(
+        "Google token is expired or revoked. Please re-authenticate."
+      );
+      authError.code = "GOOGLE_TOKEN_EXPIRED";
+      throw authError;
+    }
+    console.error("Error deleting student row:", error);
+    throw error;
+  }
+}
+
 module.exports = {
   getStudentData,
   getSpreadsheetInfo,
   updateStudentPaymentStatus,
+  updateStudentDetails,
+  deleteStudentRow,
 };

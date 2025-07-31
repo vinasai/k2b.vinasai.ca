@@ -2,6 +2,8 @@ const {
   getStudentData,
   getSpreadsheetInfo,
   updateStudentPaymentStatus,
+  updateStudentDetails,
+  deleteStudentRow,
 } = require("../services/handleGoogleSheet");
 const { generateAuthUrl, authorize } = require("../utils/googleOAuthEngine");
 const formatPhoneNumber = require("../utils/formatPhone");
@@ -520,6 +522,79 @@ exports.updateStudentStatus = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error updating student payment status",
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Update student details
+// @route   PUT /api/students/:id
+// @access  Private
+exports.updateStudent = async (req, res) => {
+  const { id } = req.params;
+  const { sheetId, month, ...updatedData } = req.body;
+
+  if (!sheetId || !month) {
+    return res
+      .status(400)
+      .json({ success: false, message: "sheetId and month are required" });
+  }
+
+  try {
+    const success = await updateStudentDetails(sheetId, id, month, updatedData);
+
+    if (success) {
+      res.status(200).json({
+        success: true,
+        message: "Student details updated successfully",
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: "Student not found or update failed",
+      });
+    }
+  } catch (error) {
+    console.error("Error updating student details:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error updating student details",
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Delete a student
+// @route   DELETE /api/students/:id
+// @access  Private
+exports.deleteStudent = async (req, res) => {
+  const { id } = req.params;
+  const { sheetId, month } = req.query;
+
+  if (!sheetId || !month) {
+    return res
+      .status(400)
+      .json({ success: false, message: "sheetId and month are required" });
+  }
+
+  try {
+    const success = await deleteStudentRow(sheetId, id, month);
+
+    if (success) {
+      res
+        .status(200)
+        .json({ success: true, message: "Student deleted successfully" });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: "Student not found or delete failed",
+      });
+    }
+  } catch (error) {
+    console.error("Error deleting student:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error deleting student",
       error: error.message,
     });
   }

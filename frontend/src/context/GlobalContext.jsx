@@ -1,4 +1,9 @@
-import React, { createContext, useReducer, useEffect } from "react";
+import React, {
+  createContext,
+  useReducer,
+  useEffect,
+  useCallback,
+} from "react";
 import AppReducer from "./AppReducer";
 import axiosInstance from "../utils/axios";
 
@@ -30,14 +35,14 @@ export const GlobalProvider = ({ children }) => {
     });
   }
 
-  async function logout() {
+  const logout = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     delete axiosInstance.defaults.headers.common["Authorization"];
     dispatch({
       type: "LOGOUT",
     });
-  }
+  }, []);
 
   function loadUser() {
     try {
@@ -62,6 +67,26 @@ export const GlobalProvider = ({ children }) => {
   useEffect(() => {
     loadUser();
   }, []);
+
+  useEffect(() => {
+    const resInterceptor = axiosInstance.interceptors.response.use(
+      (res) => res,
+      (err) => {
+        if (
+          err.response &&
+          err.response.status === 401 &&
+          !err.response.data.googleAuth
+        ) {
+          logout();
+        }
+        return Promise.reject(err);
+      }
+    );
+
+    return () => {
+      axiosInstance.interceptors.response.eject(resInterceptor);
+    };
+  }, [logout]);
 
   return (
     <GlobalContext.Provider

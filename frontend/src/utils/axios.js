@@ -13,11 +13,10 @@ axiosInstance.interceptors.response.use(
     if (error.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
-        const { data } = await axios.post("/api/auth/refresh");
+        const { data } = await axiosInstance.post("/auth/refresh");
         axios.defaults.headers.common["Authorization"] = "Bearer " + data.token;
         return axiosInstance(originalRequest);
       } catch (refreshError) {
-        // Handle failed refresh here, e.g., redirect to login
         return Promise.reject(refreshError);
       }
     }

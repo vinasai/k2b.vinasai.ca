@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { GlobalContext } from "../context/GlobalContext";
 import api from "../utils/axios";
+import Modal from "./Modal";
 
 export default function Sidebar({
   sidebarOpen,
@@ -15,10 +16,18 @@ export default function Sidebar({
   const { user, loading } = useContext(GlobalContext);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
+  const [classSearchQuery, setClassSearchQuery] = useState("");
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
   const monthPickerRef = useRef(null);
   const classPickerRef = useRef(null);
+
+  useEffect(() => {
+    if (!showClassPicker) {
+      setClassSearchQuery("");
+    }
+  }, [showClassPicker]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -268,27 +277,44 @@ export default function Sidebar({
                         </svg>
                       </button>
                       {showClassPicker && (
-                        <div className="absolute top-full left-0 right-0 mt-2 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-60 min-w-[250px] max-w-[400px] overflow-y-auto z-50 custom-scrollbar">
+                        <div className="absolute top-full left-0 right-0 mt-2 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-60 min-w-[235px] max-w-[400px] overflow-y-auto z-350 custom-scrollbar">
+                          <div className="p-2">
+                            <input
+                              type="text"
+                              placeholder="Search classes..."
+                              value={classSearchQuery}
+                              onChange={(e) =>
+                                setClassSearchQuery(e.target.value)
+                              }
+                              className="w-full px-3 py-1 mb-1 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
                           <div className="flex flex-col gap-1 p-2">
-                            {classes.map((classItem) => (
-                              <button
-                                key={classItem._id}
-                                onClick={() => handleClassSelect(classItem)}
-                                className={`px-3 py-2 text-sm text-left rounded-md transition-colors duration-150 truncate ${
-                                  selectedClass?._id === classItem._id
-                                    ? "bg-blue-600 text-white font-semibold"
-                                    : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                                }`}
-                                style={{ maxWidth: "350px" }}
-                              >
-                                <span
-                                  className="truncate block w-full"
-                                  title={classItem.className}
+                            {classes
+                              .filter((classItem) =>
+                                classItem.className
+                                  .toLowerCase()
+                                  .includes(classSearchQuery.toLowerCase())
+                              )
+                              .map((classItem) => (
+                                <button
+                                  key={classItem._id}
+                                  onClick={() => handleClassSelect(classItem)}
+                                  className={`px-3 py-2 text-sm text-left rounded-md transition-colors duration-150 truncate ${
+                                    selectedClass?._id === classItem._id
+                                      ? "bg-blue-600 text-white font-semibold"
+                                      : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                                  }`}
+                                  style={{ maxWidth: "350px" }}
                                 >
-                                  {classItem.className}
-                                </span>
-                              </button>
-                            ))}
+                                  <span
+                                    className="truncate block w-full"
+                                    title={classItem.className}
+                                  >
+                                    {classItem.className}
+                                  </span>
+                                </button>
+                              ))}
                           </div>
                         </div>
                       )}
@@ -296,7 +322,7 @@ export default function Sidebar({
                   )}
                 </div>
                 <button
-                  onClick={onLogout}
+                  onClick={() => setIsLogoutModalOpen(true)}
                   className="w-full py-2.5 bg-red-500 text-white rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-red-600 transition-colors duration-200 shadow-md"
                 >
                   <svg
@@ -433,6 +459,14 @@ export default function Sidebar({
           </div>
         )}
       </aside>
+      <Modal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={onLogout}
+        title="Confirm Logout"
+      >
+        <p>Are you sure you want to logout?</p>
+      </Modal>
     </>
   );
 }

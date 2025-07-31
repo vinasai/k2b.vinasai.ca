@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import Sidebar from "../components/Sidebar";
 import Table from "../components/Table";
 import { GlobalContext } from "../context/GlobalContext";
 import api from "../utils/axios";
+import formatPhoneNumber from "../utils/formatPhone";
 
 // Debounce hook
 function useDebounce(value, delay) {
@@ -22,6 +24,10 @@ function useDebounce(value, delay) {
   return debouncedValue;
 }
 
+const getCurrentMonthAbbr = () => {
+  return new Date().toLocaleString("default", { month: "short" }).toUpperCase();
+};
+
 export default function Dashboard() {
   const { user, logout } = useContext(GlobalContext);
 
@@ -33,7 +39,7 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [selectedMonth, setSelectedMonth] = useState(
-    localStorage.getItem("selectedMonth") || "JAN"
+    localStorage.getItem("selectedMonth") || getCurrentMonthAbbr()
   );
   const [selectedClass, setSelectedClass] = useState(null);
   const [classes, setClasses] = useState([]);
@@ -219,6 +225,75 @@ export default function Dashboard() {
     }
   };
 
+  const handleUpdateStudent = async (studentId, updatedData) => {
+    const toastId = toast.loading("Updating student...");
+    try {
+      await api.put(`/students/${encodeURIComponent(studentId)}`, {
+        ...updatedData,
+        sheetId: selectedClass?.sheetId,
+        month: selectedMonth,
+      });
+
+      setStudents((prev) =>
+        prev.map((s) => {
+          if (s.id === studentId) {
+            const newId = `${updatedData.name}-${updatedData.dob}`;
+            return {
+              ...s,
+              ...updatedData,
+              id: newId,
+              parentPhone: formatPhoneNumber(updatedData.parentPhone),
+            };
+          }
+          return s;
+        })
+      );
+
+      toast.success("Student updated successfully", { id: toastId });
+    } catch (err) {
+      console.error("Failed to update student:", err);
+      toast.error("Failed to update student details.", { id: toastId });
+      throw err;
+    }
+  };
+
+  const handleDeleteStudent = async (studentId) => {
+    const toastId = toast.loading("Deleting student...");
+    const studentToDelete = students.find((s) => s.id === studentId);
+
+    try {
+      await api.delete(
+        `/students/${encodeURIComponent(studentId)}?sheetId=${
+          selectedClass?.sheetId
+        }&month=${selectedMonth}`
+      );
+
+      setStudents((prev) => prev.filter((s) => s.id !== studentId));
+
+      if (studentToDelete) {
+        setStats((prevStats) => ({
+          ...prevStats,
+          total: prevStats.total - 1,
+          paid:
+            studentToDelete.status === "paid"
+              ? prevStats.paid - 1
+              : prevStats.paid,
+          unpaid:
+            studentToDelete.status === "not-paid"
+              ? prevStats.unpaid - 1
+              : prevStats.unpaid,
+        }));
+      } else {
+        setStatsLoading(true);
+      }
+
+      toast.success("Student deleted successfully", { id: toastId });
+    } catch (err) {
+      console.error("Failed to delete student:", err);
+      toast.error("Failed to delete student.", { id: toastId });
+    }
+  };
+
   const handleLogout = () => {
     logout();
   };
@@ -273,6 +348,8 @@ export default function Dashboard() {
               students={students}
               setStudents={setStudents}
               onPersistToggle={handlePaymentToggle}
+              onUpdateStudent={handleUpdateStudent}
+              onDeleteStudent={handleDeleteStudent}
               statsLoading={statsLoading}
               studentsLoading={studentsLoading} // KEEP this for disabling filters
               isInitialLoading={isInitialLoad} // ADD THIS PROP

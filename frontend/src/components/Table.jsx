@@ -6,11 +6,15 @@ import React, {
   useContext,
 } from "react";
 import { GlobalContext } from "../context/GlobalContext";
+import Modal from "./Modal";
+import formatPhoneNumber from "../utils/formatPhone";
 
 export default function Table({
   students,
   setStudents,
   onPersistToggle,
+  onUpdateStudent,
+  onDeleteStudent,
   studentsLoading = false,
   isInitialLoading = false,
   statsLoading = false,
@@ -27,7 +31,87 @@ export default function Table({
   const { user } = useContext(GlobalContext);
   const [toggledStudents, setToggledStudents] = useState({});
   const [originalFilterStatus, setOriginalFilterStatus] = useState({});
+  const [editingStudentId, setEditingStudentId] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    parentPhone: "",
+    dob: "",
+  });
+  const [studentToDelete, setStudentToDelete] = useState(null);
+  const editFormRef = useRef(null);
   const perPage = 15;
+
+  const formatDateForInput = (dateStr = "") => {
+    if (!dateStr || !dateStr.includes("/")) return "";
+    const parts = dateStr.split("/");
+    if (parts.length !== 3) return "";
+    const [month, day, year] = parts;
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(
+      2,
+      "0"
+    )}`;
+  };
+
+  const formatDateForStorage = (dateStr = "") => {
+    if (!dateStr || !dateStr.includes("-")) return "";
+    const parts = dateStr.split("-");
+    if (parts.length !== 3) return "";
+    const [year, month, day] = parts;
+    return `${parseInt(month, 10)}/${parseInt(day, 10)}/${year}`;
+  };
+
+  const handleEditClick = (student) => {
+    if (editingStudentId === student.id) {
+      setEditingStudentId(null);
+    } else {
+      setEditingStudentId(student.id);
+      setEditFormData({
+        name: student.name,
+        parentPhone: student.parentPhone,
+        dob: formatDateForInput(student.dob),
+      });
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingStudentId) return;
+    const unformattedPhone = (editFormData.parentPhone || "").replace(
+      /\D/g,
+      ""
+    );
+    await onUpdateStudent(editingStudentId, {
+      ...editFormData,
+      parentPhone: unformattedPhone,
+      dob: formatDateForStorage(editFormData.dob),
+    });
+    setEditingStudentId(null);
+  };
+
+  const handleDeleteClick = (student) => {
+    setStudentToDelete(student);
+  };
+
+  const confirmDelete = async () => {
+    if (!studentToDelete) return;
+    await onDeleteStudent(studentToDelete.id);
+    setStudentToDelete(null);
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (
+        editFormRef.current &&
+        !editFormRef.current.contains(event.target) &&
+        !event.target.closest(".edit-button-class")
+      ) {
+        setEditingStudentId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // For infinite scroll
   const observer = useRef();
@@ -356,9 +440,6 @@ export default function Table({
                               ? `Paid: ${displayInfo.paymentDate}`
                               : `Due: ${displayInfo.paymentDue} days`}
                           </div>
-                          {/* <div className="text-xs text-gray-500">
-                           DOB: {s.dob}
-                         </div> */}
                           {displayInfo.status === "paid" &&
                             displayInfo.paymentMarkedBy && (
                               <div className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
@@ -392,6 +473,46 @@ export default function Table({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                      {user?.role === "admin" && (
+                        <>
+                          <button
+                            onClick={() => handleEditClick(s)}
+                            className="p-1 text-gray-400 hover:text-white transition edit-button-class"
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z"
+                              />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClick(s)}
+                            className="p-1 text-gray-400 hover:text-red-500 transition"
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
+                          </button>
+                        </>
+                      )}
                       <span
                         className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 text-xs font-medium rounded-sm ${
                           displayInfo.status === "paid"
@@ -456,6 +577,84 @@ export default function Table({
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  <div
+                    className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                      editingStudentId === s.id
+                        ? "max-h-96 opacity-100"
+                        : "max-h-0 opacity-0"
+                    }`}
+                  >
+                    {editingStudentId === s.id && (
+                      <div
+                        ref={editFormRef}
+                        className="p-4 border-t border-gray-600"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-xs text-gray-400 mb-1 block">
+                              Name
+                            </label>
+                            <input
+                              type="text"
+                              value={editFormData.name}
+                              onChange={(e) =>
+                                setEditFormData({
+                                  ...editFormData,
+                                  name: e.target.value,
+                                })
+                              }
+                              className="w-full pl-3 pr-3 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-400 mb-1 block">
+                              Parent Phone
+                            </label>
+                            <input
+                              type="text"
+                              value={editFormData.parentPhone}
+                              onChange={(e) => {
+                                setEditFormData({
+                                  ...editFormData,
+                                  parentPhone: formatPhoneNumber(
+                                    e.target.value
+                                  ),
+                                });
+                              }}
+                              className="w-full pl-3 pr-3 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-400 mb-1 block">
+                              Date of Birth
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="date"
+                                value={editFormData.dob}
+                                onChange={(e) =>
+                                  setEditFormData({
+                                    ...editFormData,
+                                    dob: e.target.value,
+                                  })
+                                }
+                                className="w-full pl-3 pr-4 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400 text-sm [color-scheme:dark]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-end mt-4">
+                          <button
+                            onClick={handleUpdate}
+                            className="px-4 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="sm:hidden mt-2 pt-2 border-t border-gray-600 p-3">
@@ -531,6 +730,20 @@ export default function Table({
           </>
         )}
       </div>
+      {studentToDelete && (
+        <Modal
+          isOpen={!!studentToDelete}
+          onClose={() => setStudentToDelete(null)}
+          onConfirm={confirmDelete}
+          title="Confirm Deletion"
+        >
+          <p>
+            Are you sure you want to delete{" "}
+            <span className="font-bold">{studentToDelete.name}</span>? This
+            action cannot be undone.
+          </p>
+        </Modal>
+      )}
     </>
   );
 }

@@ -6,6 +6,8 @@ const {
   updateStudentStatus,
   getPaidStudents,
   getUnpaidStudents,
+  updateStudent,
+  deleteStudent,
 } = require("../controllers/studentController");
 const { protect } = require("../middleware/auth");
 
@@ -28,5 +30,11 @@ router.get("/spreadsheet-info", getSpreadsheetInfo);
 
 // Update student status
 router.post("/update-status", updateStudentStatus);
+
+// Update student details
+router.put("/:id", updateStudent);
+
+// Delete a student
+router.delete("/:id", deleteStudent);
 
 module.exports = router;
