@@ -532,16 +532,16 @@ exports.updateStudentStatus = async (req, res) => {
 // @access  Private
 exports.updateStudent = async (req, res) => {
   const { id } = req.params;
-  const { sheetId, month, ...updatedData } = req.body;
+  const { sheetId, ...updatedData } = req.body;
 
-  if (!sheetId || !month) {
+  if (!sheetId) {
     return res
       .status(400)
-      .json({ success: false, message: "sheetId and month are required" });
+      .json({ success: false, message: "sheetId is required" });
   }
 
   try {
-    const success = await updateStudentDetails(sheetId, id, month, updatedData);
+    const success = await updateStudentDetails(sheetId, id, updatedData);
 
     if (success) {
       res.status(200).json({
@@ -551,7 +551,7 @@ exports.updateStudent = async (req, res) => {
     } else {
       res.status(404).json({
         success: false,
-        message: "Student not found or update failed",
+        message: "Student not found in any sheets or update failed",
       });
     }
   } catch (error) {
@@ -569,16 +569,16 @@ exports.updateStudent = async (req, res) => {
 // @access  Private
 exports.deleteStudent = async (req, res) => {
   const { id } = req.params;
-  const { sheetId, month } = req.query;
+  const { sheetId } = req.query;
 
-  if (!sheetId || !month) {
+  if (!sheetId) {
     return res
       .status(400)
-      .json({ success: false, message: "sheetId and month are required" });
+      .json({ success: false, message: "sheetId is required" });
   }
 
   try {
-    const success = await deleteStudentRow(sheetId, id, month);
+    const success = await deleteStudentRow(sheetId, id);
 
     if (success) {
       res
@@ -587,7 +587,7 @@ exports.deleteStudent = async (req, res) => {
     } else {
       res.status(404).json({
         success: false,
-        message: "Student not found or delete failed",
+        message: "Student not found in any sheets or delete failed",
       });
     }
   } catch (error) {

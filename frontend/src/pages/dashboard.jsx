@@ -55,23 +55,33 @@ export default function Dashboard() {
 
   // Initialize classes
   useEffect(() => {
-    if (user?.role === "admin") {
-      api.get("/class").then((res) => {
-        const classes = res.data.data;
-        setClasses(classes);
-        if (classes.length > 0) {
-          const savedClassId = localStorage.getItem("selectedClassId");
-          const savedClass = classes.find((c) => c._id === savedClassId);
-          setSelectedClass(savedClass || classes[0]);
-        }
-      });
-    } else if (user) {
-      setSelectedClass({
-        _id: user.classId,
-        className: user.className,
-        sheetId: user.sheetId,
-      });
-    }
+    // if (user?.role === "admin") {
+    //   api.get("/class").then((res) => {
+    //     const classes = res.data.data;
+    //     setClasses(classes);
+    //     if (classes.length > 0) {
+    //       const savedClassId = localStorage.getItem("selectedClassId");
+    //       const savedClass = classes.find((c) => c._id === savedClassId);
+    //       setSelectedClass(savedClass || classes[0]);
+    //     }
+    //   });
+    // } else if (user) {
+    //   setSelectedClass({
+    //     _id: user.classId,
+    //     className: user.className,
+    //     sheetId: user.sheetId,
+    //   });
+    // }
+
+    api.get("/class").then((res) => {
+      const classes = res.data.data;
+      setClasses(classes);
+      if (classes.length > 0) {
+        const savedClassId = localStorage.getItem("selectedClassId");
+        const savedClass = classes.find((c) => c._id === savedClassId);
+        setSelectedClass(savedClass || classes[0]);
+      }
+    });
   }, [user]);
 
   // Reset when month or class changes
@@ -231,7 +241,6 @@ export default function Dashboard() {
       await api.put(`/students/${encodeURIComponent(studentId)}`, {
         ...updatedData,
         sheetId: selectedClass?.sheetId,
-        month: selectedMonth,
       });
 
       setStudents((prev) =>
@@ -265,7 +274,7 @@ export default function Dashboard() {
       await api.delete(
         `/students/${encodeURIComponent(studentId)}?sheetId=${
           selectedClass?.sheetId
-        }&month=${selectedMonth}`
+        }`
       );
 
       setStudents((prev) => prev.filter((s) => s.id !== studentId));

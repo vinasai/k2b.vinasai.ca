@@ -287,58 +287,70 @@ async function updateStudentPaymentStatus(
   }
 }
 
-async function updateStudentDetails(
-  spreadsheetId,
-  studentId,
-  month,
-  updatedData
-) {
+async function updateStudentDetails(spreadsheetId, studentId, updatedData) {
   const auth = await authorize();
   const sheets = google.sheets({ version: "v4", auth });
   const [nameToFind, dobToFind] = studentId.split("-");
 
   try {
-    const range = `${month}!A2:H`;
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
-    });
+    const spreadsheetInfo = await getSpreadsheetInfo(auth, spreadsheetId);
+    const allSheetNames = spreadsheetInfo.sheets.map((s) => s.title);
 
-    const rows = res.data.values;
-    if (!rows || rows.length === 0) {
-      return false;
+    let updatedInAtLeastOneSheet = false;
+
+    for (const month of allSheetNames) {
+      try {
+        const range = `${month}!A2:H`;
+        const res = await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range,
+        });
+
+        const rows = res.data.values;
+        if (!rows || rows.length === 0) {
+          continue; // Skip if sheet is empty
+        }
+
+        const studentRowIndex = rows.findIndex(
+          (row) =>
+            row[0] &&
+            row[0].trim() === nameToFind.trim() &&
+            row[1]?.trim() === dobToFind.trim()
+        );
+
+        if (studentRowIndex === -1) {
+          continue; // Skip if student not found in this sheet
+        }
+
+        const targetRow = studentRowIndex + 2;
+        const currentValues = rows[studentRowIndex];
+
+        const newValues = [
+          updatedData.name ?? currentValues[0],
+          updatedData.dob ?? currentValues[1],
+          updatedData.parentPhone ?? currentValues[2],
+        ];
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${month}!A${targetRow}:C${targetRow}`,
+          valueInputOption: "USER_ENTERED",
+          resource: {
+            values: [newValues],
+          },
+        });
+
+        updatedInAtLeastOneSheet = true;
+      } catch (sheetError) {
+        // Log error for a specific sheet but continue to the next
+        console.error(
+          `Error updating details in sheet '${month}':`,
+          sheetError
+        );
+      }
     }
 
-    const studentRowIndex = rows.findIndex(
-      (row) =>
-        row[0] &&
-        row[0].trim() === nameToFind.trim() &&
-        row[1]?.trim() === dobToFind.trim()
-    );
-
-    if (studentRowIndex === -1) {
-      return false;
-    }
-
-    const targetRow = studentRowIndex + 2;
-    const currentValues = rows[studentRowIndex];
-
-    const newValues = [
-      updatedData.name ?? currentValues[0],
-      updatedData.dob ?? currentValues[1],
-      updatedData.parentPhone ?? currentValues[2],
-    ];
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `${month}!A${targetRow}:C${targetRow}`,
-      valueInputOption: "USER_ENTERED",
-      resource: {
-        values: [newValues],
-      },
-    });
-
-    return true;
+    return updatedInAtLeastOneSheet;
   } catch (error) {
     if (error.response?.data?.error === "invalid_grant") {
       const authError = new Error(
@@ -347,69 +359,72 @@ async function updateStudentDetails(
       authError.code = "GOOGLE_TOKEN_EXPIRED";
       throw authError;
     }
-    console.error("Error updating student details:", error);
+    console.error("Error updating student details across all sheets:", error);
     throw error;
   }
 }
 
-async function deleteStudentRow(spreadsheetId, studentId, month) {
+async function deleteStudentRow(spreadsheetId, studentId) {
   const auth = await authorize();
   const sheets = google.sheets({ version: "v4", auth });
   const [nameToFind, dobToFind] = studentId.split("-");
 
   try {
-    const range = `${month}!A2:H`;
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
-    });
+    const spreadsheetInfo = await getSpreadsheetInfo(auth, spreadsheetId);
+    let deletedInAtLeastOneSheet = false;
 
-    const rows = res.data.values;
-    if (!rows || rows.length === 0) {
-      return false;
-    }
+    for (const sheet of spreadsheetInfo.sheets) {
+      const month = sheet.title;
+      try {
+        const range = `${month}!A2:H`;
+        const res = await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range,
+        });
 
-    const studentRowIndex = rows.findIndex(
-      (row) =>
-        row[0] &&
-        row[0].trim() === nameToFind.trim() &&
-        row[1]?.trim() === dobToFind.trim()
-    );
+        const rows = res.data.values;
+        if (!rows || rows.length === 0) {
+          continue; // Skip if sheet is empty
+        }
 
-    if (studentRowIndex === -1) {
-      return false;
-    }
+        const studentRowIndex = rows.findIndex(
+          (row) =>
+            row[0] &&
+            row[0].trim() === nameToFind.trim() &&
+            row[1]?.trim() === dobToFind.trim()
+        );
 
-    const targetRow = studentRowIndex + 2;
+        if (studentRowIndex === -1) {
+          continue; // Skip if student not found
+        }
 
-    const sheetInfo = await sheets.spreadsheets.get({ spreadsheetId });
-    const sheet = sheetInfo.data.sheets.find(
-      (s) => s.properties.title === month
-    );
-    if (!sheet) {
-      return false;
-    }
-    const sheetId = sheet.properties.sheetId;
+        const targetRow = studentRowIndex + 2;
 
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      resource: {
-        requests: [
-          {
-            deleteDimension: {
-              range: {
-                sheetId: sheetId,
-                dimension: "ROWS",
-                startIndex: targetRow - 1,
-                endIndex: targetRow,
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          resource: {
+            requests: [
+              {
+                deleteDimension: {
+                  range: {
+                    sheetId: sheet.sheetId,
+                    dimension: "ROWS",
+                    startIndex: targetRow - 1,
+                    endIndex: targetRow,
+                  },
+                },
               },
-            },
+            ],
           },
-        ],
-      },
-    });
+        });
 
-    return true;
+        deletedInAtLeastOneSheet = true;
+      } catch (sheetError) {
+        // Log and continue
+        console.error(`Error deleting from sheet '${month}':`, sheetError);
+      }
+    }
+    return deletedInAtLeastOneSheet;
   } catch (error) {
     if (error.response?.data?.error === "invalid_grant") {
       const authError = new Error(
@@ -418,7 +433,7 @@ async function deleteStudentRow(spreadsheetId, studentId, month) {
       authError.code = "GOOGLE_TOKEN_EXPIRED";
       throw authError;
     }
-    console.error("Error deleting student row:", error);
+    console.error("Error deleting student row across all sheets:", error);
     throw error;
   }
 }
