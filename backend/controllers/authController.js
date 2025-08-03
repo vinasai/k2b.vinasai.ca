@@ -44,7 +44,7 @@ exports.login = async (req, res, next) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 90 * 24 * 60 * 60 * 1000, // 90d
+      maxAge: 90 * 24 * 60 * 60 * 1000,
     });
 
     let classInfo = null;
@@ -99,6 +99,7 @@ exports.refresh = async (req, res) => {
       process.env.JWT_REFRESH_SECRET ||
         "z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e8d7c6b5a4"
     );
+
     const user = await User.findById(decoded.id);
 
     if (!user || user.refreshToken !== refreshToken) {
@@ -107,7 +108,20 @@ exports.refresh = async (req, res) => {
         .json({ success: false, message: "Invalid refresh token" });
     }
 
-    const { accessToken } = generateToken(user);
+    const { accessToken, refreshToken: newRefreshToken } = generateToken(user);
+
+    // Update the refresh token in the database
+    user.refreshToken = newRefreshToken;
+    await user.save();
+
+    // Set the new refresh token in the cookie
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 90 * 24 * 60 * 60 * 1000,
+    });
+
     res.status(200).json({ success: true, token: accessToken });
   } catch (err) {
     res.status(401).json({

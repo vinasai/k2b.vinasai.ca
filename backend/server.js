@@ -24,6 +24,7 @@ app.use(
       "https://k2b.vinasai.ca",
       "http://localhost:5175",
       "http://localhost:4173",
+      "http://localhost:5176",
     ],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],

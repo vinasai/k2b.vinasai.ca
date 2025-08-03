@@ -556,6 +556,24 @@ exports.updateStudent = async (req, res) => {
     }
   } catch (error) {
     console.error("Error updating student details:", error);
+    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Your Google authentication has expired. Please log in again.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
+    if (error.code === "GOOGLE_AUTH_REQUIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Google Authentication is required.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
     res.status(500).json({
       success: false,
       message: "Error updating student details",
@@ -592,6 +610,24 @@ exports.deleteStudent = async (req, res) => {
     }
   } catch (error) {
     console.error("Error deleting student:", error);
+    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Your Google authentication has expired. Please log in again.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
+    if (error.code === "GOOGLE_AUTH_REQUIRED") {
+      const authUrl = await generateAuthUrl();
+      return res.status(401).json({
+        success: false,
+        message: "Google Authentication is required.",
+        googleAuth: true,
+        authUrl,
+      });
+    }
     res.status(500).json({
       success: false,
       message: "Error deleting student",

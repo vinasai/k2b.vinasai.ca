@@ -71,7 +71,34 @@ async function saveToken(code) {
  */
 async function authorize() {
   const client = await getOAuth2Client();
+
+  // Check if we have credentials and if the access token is still valid
   if (client.credentials && client.credentials.access_token) {
+    // Check if token is expired
+    if (
+      client.credentials.expiry_date &&
+      client.credentials.expiry_date <= Date.now()
+    ) {
+      console.log("Google token expired, attempting refresh...");
+      try {
+        const { credentials } = await client.refreshAccessToken();
+        client.setCredentials(credentials);
+
+        // Save the refreshed token
+        await fs.writeFile(TOKEN_PATH, JSON.stringify(credentials));
+        console.log("Google token refreshed successfully");
+        return client;
+      } catch (err) {
+        console.log("Failed to refresh Google token:", err.message);
+        // Delete the invalid token file
+        try {
+          await fs.unlink(TOKEN_PATH);
+        } catch (unlinkErr) {
+          // File might not exist
+        }
+        return null;
+      }
+    }
     return client;
   }
   return null;

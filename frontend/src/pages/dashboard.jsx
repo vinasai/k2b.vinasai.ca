@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext } from "react";
-import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import Sidebar from "../components/Sidebar";
 import Table from "../components/Table";
+import GoogleAuthError from "../components/GoogleAuthError";
 import { GlobalContext } from "../context/GlobalContext";
 import api from "../utils/axios";
 import formatPhoneNumber from "../utils/formatPhone";
@@ -50,6 +50,7 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [googleAuthUrl, setGoogleAuthUrl] = useState(null);
 
   const isInitialLoad = statsLoading || (studentsLoading && currentPage === 1);
 
@@ -109,9 +110,7 @@ export default function Dashboard() {
     if (!selectedClass?.sheetId) return;
 
     const fetchData = async () => {
-      // Set loading states
       if (currentPage === 1) {
-        // studentsLoading is already set by the effects above
       } else {
         setLoadingMore(true);
       }
@@ -158,16 +157,26 @@ export default function Dashboard() {
               setStats(statsRes.data.data);
             }
           } catch (err) {
-            console.error("Failed to fetch stats:", err);
+            console.error("Failed to fetch stats:", err.response.data.error);
           } finally {
             setStatsLoading(false);
           }
         }
       } catch (err) {
-        console.error("Failed to fetch data:", err);
-        setError("Failed to load data. Please try again later.");
-        if (currentPage === 1) {
-          setStudents([]);
+        console.error("Failed to fetch data:", err.response.data.error);
+        if (
+          err.response?.status === 401 &&
+          err.response?.data?.googleAuth === true
+        ) {
+          setGoogleAuthUrl(err.response.data.authUrl);
+          setError(
+            "Google Authorization is required. Please renew your authentication."
+          );
+        } else {
+          setError(err.response.data.error);
+          if (currentPage === 1) {
+            setStudents([]);
+          }
         }
         setStudentsLoading(false);
         if (statsLoading) setStatsLoading(false);
@@ -200,7 +209,6 @@ export default function Dashboard() {
   };
 
   const handlePaymentToggle = async (
-    studentId,
     studentName,
     dob,
     parentPhone,
@@ -261,6 +269,17 @@ export default function Dashboard() {
       toast.success("Student updated successfully", { id: toastId });
     } catch (err) {
       console.error("Failed to update student:", err);
+
+      if (
+        err.response?.status === 401 &&
+        err.response?.data?.googleAuth === true
+      ) {
+        toast.error("Authorization expired. Redirecting to Google...", {
+          id: toastId,
+        });
+        //window.location.href = err.response.data.authUrl;
+        return;
+      }
       toast.error("Failed to update student details.", { id: toastId });
       throw err;
     }
@@ -352,26 +371,30 @@ export default function Dashboard() {
             </div>
           )}
           <div className="bg-gray-800 rounded-lg border border-gray-700 h-full flex flex-col">
-            <Table
-              key={selectedClass?._id || "no-class-selected"}
-              students={students}
-              setStudents={setStudents}
-              onPersistToggle={handlePaymentToggle}
-              onUpdateStudent={handleUpdateStudent}
-              onDeleteStudent={handleDeleteStudent}
-              statsLoading={statsLoading}
-              studentsLoading={studentsLoading} // KEEP this for disabling filters
-              isInitialLoading={isInitialLoad} // ADD THIS PROP
-              isPageLoading={loadingMore}
-              stats={stats}
-              hasNextPage={hasNextPage}
-              onLoadMore={loadMoreItems}
-              filter={filter}
-              onFilterChange={setFilter}
-              search={search}
-              onSearchChange={setSearch}
-              month={selectedMonth}
-            />
+            {googleAuthUrl ? (
+              <GoogleAuthError authUrl={googleAuthUrl} />
+            ) : (
+              <Table
+                key={selectedClass?._id || "no-class-selected"}
+                students={students}
+                setStudents={setStudents}
+                onPersistToggle={handlePaymentToggle}
+                onUpdateStudent={handleUpdateStudent}
+                onDeleteStudent={handleDeleteStudent}
+                statsLoading={statsLoading}
+                studentsLoading={studentsLoading} // KEEP this for disabling filters
+                isInitialLoading={isInitialLoad} // ADD THIS PROP
+                isPageLoading={loadingMore}
+                stats={stats}
+                hasNextPage={hasNextPage}
+                onLoadMore={loadMoreItems}
+                filter={filter}
+                onFilterChange={setFilter}
+                search={search}
+                onSearchChange={setSearch}
+                month={selectedMonth}
+              />
+            )}
           </div>
         </main>
       </div>

@@ -75,7 +75,7 @@ export default function Login() {
               />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              Payment System
+              K2B Dance Studios
             </h1>
             <p className="mt-2 text-sm text-gray-400">
               Enter your credentials to access your account
@@ -280,7 +280,7 @@ export default function Login() {
               <p className="text-xs text-center text-gray-400">
                 Powered by{" "}
                 <a
-                  href="https://vinasai.com"
+                  href="https://vinasai.ca"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-400 hover:text-blue-300 transition-colors"

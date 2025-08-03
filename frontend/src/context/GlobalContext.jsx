@@ -26,6 +26,7 @@ export const GlobalProvider = ({ children }) => {
   function login(data) {
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
+    // Set the Authorization header immediately after login
     axiosInstance.defaults.headers.common[
       "Authorization"
     ] = `Bearer ${data.token}`;
@@ -67,26 +68,6 @@ export const GlobalProvider = ({ children }) => {
   useEffect(() => {
     loadUser();
   }, []);
-
-  useEffect(() => {
-    const resInterceptor = axiosInstance.interceptors.response.use(
-      (res) => res,
-      (err) => {
-        if (
-          err.response &&
-          err.response.status === 401 &&
-          !err.response.data.googleAuth
-        ) {
-          logout();
-        }
-        return Promise.reject(err);
-      }
-    );
-
-    return () => {
-      axiosInstance.interceptors.response.eject(resInterceptor);
-    };
-  }, [logout]);
 
   return (
     <GlobalContext.Provider

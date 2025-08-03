@@ -190,9 +190,9 @@ export default function Sidebar({
         <div className="p-6 border-b border-gray-700 flex items-center justify-between flex-shrink-0">
           <div>
             <div className="text-xl font-bold text-blue-400 mb-1">
-              Payment System
+              K2B Dance Studios
             </div>
-            <div className="text-sm text-gray-400">Student Management</div>
+            <div className="text-sm text-gray-400">Payment Management</div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
