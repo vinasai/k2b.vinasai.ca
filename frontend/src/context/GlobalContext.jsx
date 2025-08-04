@@ -36,7 +36,12 @@ export const GlobalProvider = ({ children }) => {
     });
   }
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await axiosInstance.post("/auth/logout"); // Adjust path as needed
+    } catch (err) {
+      console.log(err);
+    }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     delete axiosInstance.defaults.headers.common["Authorization"];

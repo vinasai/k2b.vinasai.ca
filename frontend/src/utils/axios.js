@@ -17,14 +17,12 @@ axiosInstance.interceptors.response.use(
       error.response?.status === 401 &&
       !originalRequest._retry &&
       !originalRequest.url?.includes("/auth/refresh") &&
+      !originalRequest.url?.includes("/auth/login") &&
       !error.response.data.googleAuth
     ) {
-      console.log("🔄 Token expired, attempting refresh...");
       originalRequest._retry = true;
       try {
-        console.log("📡 Making refresh request...");
         const { data } = await axiosInstance.post("/auth/refresh");
-        console.log("✅ Refresh successful, new token received");
 
         // Update both axios instances
         const token = `Bearer ${data.token}`;
@@ -34,18 +32,13 @@ axiosInstance.interceptors.response.use(
         // Update localStorage with new token
         localStorage.setItem("token", data.token);
 
-        console.log("🔁 Retrying original request...");
         return axiosInstance(originalRequest);
       } catch (refreshError) {
-        console.log("❌ Refresh failed:", refreshError);
-        // If refresh fails, clear stored data and redirect to login
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         delete axiosInstance.defaults.headers.common["Authorization"];
 
-        // Only redirect if we're not already on the login page
         if (window.location.pathname !== "/login") {
-          console.log("🔄 Redirecting to login...");
           window.location.href = "/login";
         }
 

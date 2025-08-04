@@ -475,6 +475,13 @@ exports.updateStudentStatus = async (req, res) => {
     });
   }
 
+  console.log(studentName);
+  console.log(dob);
+  console.log(newStatus);
+  console.log(month);
+  console.log(sheetId);
+  console.log(markedBy);
+
   try {
     await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -534,6 +541,10 @@ exports.updateStudent = async (req, res) => {
   const { id } = req.params;
   const { sheetId, ...updatedData } = req.body;
 
+  console.log("updating", id);
+  console.log(sheetId);
+  console.log(updatedData);
+
   if (!sheetId) {
     return res
       .status(400)
@@ -541,7 +552,18 @@ exports.updateStudent = async (req, res) => {
   }
 
   try {
-    const success = await updateStudentDetails(sheetId, id, updatedData);
+    const dataToUpdateInSheet = { ...updatedData };
+    if (dataToUpdateInSheet.name && dataToUpdateInSheet.dob) {
+      dataToUpdateInSheet.id = `${dataToUpdateInSheet.name}-${dataToUpdateInSheet.dob}`;
+    }
+
+    const success = await updateStudentDetails(
+      sheetId,
+      id,
+      dataToUpdateInSheet
+    );
+
+    console.log(success);
 
     if (success) {
       res.status(200).json({
@@ -589,6 +611,9 @@ exports.deleteStudent = async (req, res) => {
   const { id } = req.params;
   const { sheetId } = req.query;
 
+  console.log("deleting", id);
+  console.log(sheetId);
+
   if (!sheetId) {
     return res
       .status(400)
@@ -597,6 +622,8 @@ exports.deleteStudent = async (req, res) => {
 
   try {
     const success = await deleteStudentRow(sheetId, id);
+
+    console.log(success);
 
     if (success) {
       res

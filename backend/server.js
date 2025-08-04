@@ -56,7 +56,7 @@ app.use("/api/class", classRoutes);
 
 // Basic route for testing
 app.get("/api/health", (req, res) => {
-  res.status(200).json({ message: "Server is running" });
+  res.status(200).json({ message: "Server is running v2.0-bug.1" });
 });
 
 // Error handling middleware

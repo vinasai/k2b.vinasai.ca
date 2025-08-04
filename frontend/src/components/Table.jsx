@@ -27,6 +27,7 @@ export default function Table({
   search,
   onSearchChange,
   month,
+  isRecordLoading,
 }) {
   const { user } = useContext(GlobalContext);
   const [toggledStudents, setToggledStudents] = useState({});
@@ -226,17 +227,8 @@ export default function Table({
 
     try {
       // Notify the parent to persist the change
-      await onPersistToggle(
-        studentId,
-        studentName,
-        dob,
-        parentPhone,
-        newStatus,
-        markedBy
-      );
+      await onPersistToggle(studentName, dob, parentPhone, newStatus, markedBy);
     } catch (error) {
-      // If persistence fails, revert the optimistic UI change.
-      // The error message is already set by the parent component.
       setToggledStudents((prev) => {
         const revertedToggles = { ...prev };
         if (previousToggleState) {
@@ -341,7 +333,7 @@ export default function Table({
               onChange={(e) => {
                 onSearchChange(e.target.value);
               }}
-              disabled={studentsLoading}
+              disabled={studentsLoading || isRecordLoading}
             />
           </div>
           <div className="flex mt-3 sm:mt-0 sm:ml-4 bg-gray-800 rounded-lg overflow-hidden flex-wrap justify-center">
@@ -349,7 +341,7 @@ export default function Table({
               <button
                 key={f}
                 onClick={() => handleFilterChange(f)}
-                disabled={studentsLoading}
+                disabled={studentsLoading || isRecordLoading}
                 className={`px-4 py-1.5 font-medium text-sm transition flex-grow sm:flex-grow-0 ${
                   filter === f
                     ? f === "all"
@@ -358,7 +350,11 @@ export default function Table({
                       ? "bg-green-500 text-white"
                       : "bg-red-500 text-white"
                     : "text-gray-300 hover:bg-gray-700"
-                } ${studentsLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                } ${
+                  studentsLoading || isRecordLoading
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
+                }`}
               >
                 {f === "all" ? "All" : f === "paid" ? "Paid" : "Unpaid"}
               </button>
@@ -477,7 +473,8 @@ export default function Table({
                         <>
                           <button
                             onClick={() => handleEditClick(s)}
-                            className="p-1 text-gray-400 hover:text-white transition edit-button-class"
+                            disabled={isRecordLoading}
+                            className="p-1 text-gray-400 hover:text-white transition edit-button-class disabled:opacity-50"
                           >
                             <svg
                               className="w-5 h-5"
@@ -495,7 +492,8 @@ export default function Table({
                           </button>
                           <button
                             onClick={() => handleDeleteClick(s)}
-                            className="p-1 text-gray-400 hover:text-red-500 transition"
+                            disabled={isRecordLoading}
+                            className="p-1 text-gray-400 hover:text-red-500 transition disabled:opacity-50"
                           >
                             <svg
                               className="w-5 h-5"
@@ -553,13 +551,18 @@ export default function Table({
                         )}
                       </span>
                       <div
-                        onClick={() =>
-                          handleToggle(s.id, s.name, s.dob, s.parentPhone)
+                        onClick={
+                          isRecordLoading
+                            ? undefined
+                            : () =>
+                                handleToggle(s.id, s.name, s.dob, s.parentPhone)
                         }
                         className={`w-7 h-7 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
                           displayInfo.status === "paid"
                             ? "bg-green-500 border border-green-500"
                             : "bg-gray-800 border border-gray-600"
+                        } ${
+                          isRecordLoading ? "cursor-not-allowed opacity-50" : ""
                         }`}
                       >
                         {displayInfo.status === "paid" && (
@@ -648,7 +651,8 @@ export default function Table({
                         <div className="flex justify-end mt-4">
                           <button
                             onClick={handleUpdate}
-                            className="px-4 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors"
+                            disabled={isRecordLoading}
+                            className="px-4 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors disabled:opacity-50"
                           >
                             Save
                           </button>

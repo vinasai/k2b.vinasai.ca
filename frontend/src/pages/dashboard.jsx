@@ -6,6 +6,7 @@ import GoogleAuthError from "../components/GoogleAuthError";
 import { GlobalContext } from "../context/GlobalContext";
 import api from "../utils/axios";
 import formatPhoneNumber from "../utils/formatPhone";
+import axios from "axios";
 
 // Debounce hook
 function useDebounce(value, delay) {
@@ -51,6 +52,7 @@ export default function Dashboard() {
   const [hasNextPage, setHasNextPage] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [googleAuthUrl, setGoogleAuthUrl] = useState(null);
+  const [isRecordLoading, setIsRecordLoading] = useState(false);
 
   const isInitialLoad = statsLoading || (studentsLoading && currentPage === 1);
 
@@ -244,12 +246,31 @@ export default function Dashboard() {
   };
 
   const handleUpdateStudent = async (studentId, updatedData) => {
-    const toastId = toast.loading("Updating student...");
+    const toastId = toast.loading("Updating student...", {
+      duration: Infinity,
+    });
+    setIsRecordLoading(true);
     try {
-      await api.put(`/students/${encodeURIComponent(studentId)}`, {
-        ...updatedData,
-        sheetId: selectedClass?.sheetId,
-      });
+      // await api.put(
+      //   `https://k2b.vinasai.ca/api/students/${encodeURIComponent(studentId)}`,
+      //   {
+      //     ...updatedData,
+      //     sheetId: selectedClass?.sheetId,
+      //   }
+      // );
+
+      await axios.put(
+        `http://localhost:5018/api/students/${encodeURIComponent(studentId)}`,
+        {
+          ...updatedData,
+          sheetId: selectedClass?.sheetId,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
 
       setStudents((prev) =>
         prev.map((s) => {
@@ -266,7 +287,10 @@ export default function Dashboard() {
         })
       );
 
-      toast.success("Student updated successfully", { id: toastId });
+      toast.success("Student updated successfully", {
+        id: toastId,
+        duration: 4000,
+      });
     } catch (err) {
       console.error("Failed to update student:", err);
 
@@ -276,17 +300,26 @@ export default function Dashboard() {
       ) {
         toast.error("Authorization expired. Redirecting to Google...", {
           id: toastId,
+          duration: 4000,
         });
         //window.location.href = err.response.data.authUrl;
         return;
       }
-      toast.error("Failed to update student details.", { id: toastId });
+      toast.error("Failed to update student details.", {
+        id: toastId,
+        duration: 4000,
+      });
       throw err;
+    } finally {
+      setIsRecordLoading(false);
     }
   };
 
   const handleDeleteStudent = async (studentId) => {
-    const toastId = toast.loading("Deleting student...");
+    const toastId = toast.loading("Deleting student...", {
+      duration: Infinity,
+    });
+    setIsRecordLoading(true);
     const studentToDelete = students.find((s) => s.id === studentId);
 
     try {
@@ -315,10 +348,19 @@ export default function Dashboard() {
         setStatsLoading(true);
       }
 
-      toast.success("Student deleted successfully", { id: toastId });
+      toast.success("Student deleted successfully", {
+        id: toastId,
+        duration: 4000, // Auto-dismiss after 4 seconds
+      });
     } catch (err) {
       console.error("Failed to delete student:", err);
-      toast.error("Failed to delete student.", { id: toastId });
+      toast.error("Failed to delete student.", {
+        id: toastId,
+        duration: 4000, // Auto-dismiss after 4 seconds
+      });
+      throw err; // Add throw to maintain error propagation
+    } finally {
+      setIsRecordLoading(false);
     }
   };
 
@@ -385,6 +427,7 @@ export default function Dashboard() {
                 studentsLoading={studentsLoading} // KEEP this for disabling filters
                 isInitialLoading={isInitialLoad} // ADD THIS PROP
                 isPageLoading={loadingMore}
+                isRecordLoading={isRecordLoading}
                 stats={stats}
                 hasNextPage={hasNextPage}
                 onLoadMore={loadMoreItems}

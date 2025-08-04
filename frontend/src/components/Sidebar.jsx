@@ -18,6 +18,7 @@ export default function Sidebar({
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [classSearchQuery, setClassSearchQuery] = useState("");
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
   const monthPickerRef = useRef(null);
@@ -174,6 +175,12 @@ export default function Sidebar({
     }
   };
 
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    await onLogout();
+    // No need to set loading to false, as the component will unmount.
+  };
+
   return (
     <>
       <div
@@ -192,7 +199,7 @@ export default function Sidebar({
             <div className="text-xl font-bold text-blue-400 mb-1">
               K2B Dance Studios
             </div>
-            <div className="text-sm text-gray-400">Payment Management</div>
+            <div className="text-sm text-gray-400">Payment Management v2.0</div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -462,8 +469,10 @@ export default function Sidebar({
       <Modal
         isOpen={isLogoutModalOpen}
         onClose={() => setIsLogoutModalOpen(false)}
-        onConfirm={onLogout}
+        onConfirm={handleConfirmLogout}
         title="Confirm Logout"
+        confirmButtonText="Logout"
+        confirmButtonLoading={isLoggingOut}
       >
         <p>Are you sure you want to logout?</p>
       </Modal>

@@ -16,6 +16,12 @@ const router = express.Router();
 // Get all students
 router.get("/", getStudents);
 
+// Update student details
+router.put("/:id", updateStudent);
+
+// Delete a student
+router.delete("/:id", deleteStudent);
+
 // Get all paid students
 router.get("/paid", getPaidStudents);
 
@@ -30,11 +36,5 @@ router.get("/spreadsheet-info", getSpreadsheetInfo);
 
 // Update student status
 router.post("/update-status", updateStudentStatus);
-
-// Update student details
-router.put("/:id", updateStudent);
-
-// Delete a student
-router.delete("/:id", deleteStudent);
 
 module.exports = router;

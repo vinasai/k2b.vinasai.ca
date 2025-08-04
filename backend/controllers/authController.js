@@ -81,6 +81,18 @@ exports.login = async (req, res, next) => {
   }
 };
 
+// backend/controllers/authController.js
+
+exports.logout = (req, res) => {
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax", // or "strict" depending on your setup
+    path: "/", // must match the path used when setting the cookie
+  });
+  res.status(200).json({ success: true, message: "Logged out successfully" });
+};
+
 // @desc    Refresh token
 // @route   POST /api/auth/refresh
 // @access  Public
