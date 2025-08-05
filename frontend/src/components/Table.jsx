@@ -16,6 +16,7 @@ export default function Table({
   onUpdateStudent,
   onDeleteStudent,
   onRemoveFromClass,
+  onPaymentAmountUpdate,
   studentsLoading = false,
   isInitialLoading = false,
   statsLoading = false,
@@ -34,6 +35,7 @@ export default function Table({
   const [toggledStudents, setToggledStudents] = useState({});
   const [originalFilterStatus, setOriginalFilterStatus] = useState({});
   const [editingStudentId, setEditingStudentId] = useState(null);
+  const [paymentAmounts, setPaymentAmounts] = useState({});
   const [editFormData, setEditFormData] = useState({
     name: "",
     parentPhone: "",
@@ -41,9 +43,34 @@ export default function Table({
   });
   const [studentToDelete, setStudentToDelete] = useState(null);
   const [studentToRemove, setStudentToRemove] = useState(null);
-  const [paymentAmounts, setPaymentAmounts] = useState({});
   const editFormRef = useRef(null);
   const perPage = 15;
+
+  // Debounced payment amount update
+  const debounceTimers = useRef({});
+
+  const handlePaymentAmountChange = (studentId, amount) => {
+    // Update local state immediately for responsive UI
+    setPaymentAmounts((prev) => ({
+      ...prev,
+      [studentId]: amount,
+    }));
+
+    // Clear existing timer for this student
+    if (debounceTimers.current[studentId]) {
+      clearTimeout(debounceTimers.current[studentId]);
+    }
+
+    // Only update database if amount is valid and not empty
+    if (amount && !isNaN(parseFloat(amount)) && onPaymentAmountUpdate) {
+      // Set new timer for database update
+      debounceTimers.current[studentId] = setTimeout(() => {
+        onPaymentAmountUpdate(studentId, amount).catch((err) => {
+          console.error("Failed to update payment amount:", err);
+        });
+      }, 1000); // 1 second debounce
+    }
+  };
 
   const formatDateForInput = (dateStr = "") => {
     if (!dateStr || !dateStr.includes("/")) return "";
@@ -157,7 +184,27 @@ export default function Table({
       }
     });
     setOriginalFilterStatus(originalStatus);
-    setPaymentAmounts(initialAmounts);
+
+    // Only update payment amounts for new students or those with amounts from backend
+    // Preserve locally entered amounts that haven't been saved yet
+    setPaymentAmounts((prev) => {
+      const updated = { ...prev };
+      students.forEach((student) => {
+        // If student has amount from backend and we don't have local value, use backend value
+        if (student.amount && !updated[student.id]) {
+          updated[student.id] = student.amount.toString();
+        }
+        // If student doesn't have amount from backend and status is not-paid, clear local value
+        else if (
+          !student.amount &&
+          student.status === "not-paid" &&
+          updated[student.id]
+        ) {
+          delete updated[student.id];
+        }
+      });
+      return updated;
+    });
   }, [students, filter]);
 
   const monthMap = {
@@ -215,9 +262,35 @@ export default function Table({
     onFilterChange(newFilter);
   };
 
-  const handleAmountChange = useCallback((studentId, amount) => {
-    setPaymentAmounts((prev) => ({ ...prev, [studentId]: amount.toString() }));
-  }, []);
+  const handleRowClick = (studentId, event) => {
+    // Prevent row click from triggering if:
+    // 1. Clicking on interactive elements (buttons, inputs, etc.)
+    // 2. Student is inactive
+    // 3. Currently editing this student
+    // 4. Record is loading
+    const student = students.find((s) => s.id === studentId);
+    if (
+      !student ||
+      student.studentStatus === "inactive" ||
+      editingStudentId === studentId ||
+      isRecordLoading
+    ) {
+      return;
+    }
+
+    // Check if the click target or its parent is an interactive element
+    const target = event.target;
+    const isInteractiveElement = target.closest(
+      'button, input, select, textarea, [role="button"], .edit-button-class'
+    );
+
+    if (isInteractiveElement) {
+      return;
+    }
+
+    // Trigger the toggle
+    handleToggle(studentId);
+  };
 
   const handleToggle = async (studentId) => {
     const originalStudent = students.find((s) => s.id === studentId);
@@ -252,7 +325,9 @@ export default function Table({
     const paymentDueForUpdate =
       newStatus === "not-paid" ? calculateDueDays(month) : null;
     const markedBy = newStatus === "paid" ? user?.name || "" : "";
-    const amount = paymentAmounts[studentId] || null;
+
+    // Get the payment amount for this student
+    const paymentAmount = paymentAmounts[studentId] || null;
 
     const previousToggleState = toggledStudents[studentId];
 
@@ -263,20 +338,38 @@ export default function Table({
         status: newStatus,
         paymentDate: newStatus === "paid" ? "Loading..." : "",
         markedBy: markedBy,
-        amount: newStatus === "paid" ? amount : null,
         paymentDue: paymentDueForUpdate,
         isLoading: true,
       },
     }));
 
     try {
-      // Notify the parent to persist the change
+      // Notify the parent to persist the change, including payment amount
       const result = await onPersistToggle(
         studentId,
         newStatus,
         markedBy,
-        amount
+        paymentAmount
       );
+
+      // Update payment amounts based on status change
+      if (newStatus === "paid") {
+        // Use the amount from backend response if available, otherwise use entered amount
+        const finalAmount = result?.amount || paymentAmount;
+        if (finalAmount) {
+          setPaymentAmounts((prev) => ({
+            ...prev,
+            [studentId]: finalAmount.toString(),
+          }));
+        }
+      } else {
+        // Clear the amount when marking as not-paid
+        setPaymentAmounts((prev) => {
+          const updated = { ...prev };
+          delete updated[studentId];
+          return updated;
+        });
+      }
 
       // Update with the actual date from backend
       setToggledStudents((prev) => {
@@ -291,16 +384,6 @@ export default function Table({
         }
         return updatedToggles;
       });
-
-      if (newStatus === "paid") {
-        setPaymentAmounts((prev) => {
-          const newAmounts = { ...prev };
-          delete newAmounts[studentId];
-          return newAmounts;
-        });
-      } else {
-        setPaymentAmounts((prev) => ({ ...prev, [studentId]: "" }));
-      }
     } catch (error) {
       setToggledStudents((prev) => {
         const revertedToggles = { ...prev };
@@ -416,118 +499,6 @@ export default function Table({
       </button>
     </>
   );
-
-  const PaymentControls = React.memo(
-    ({
-      s,
-      displayInfo,
-      handleToggle,
-      handleAmountChange,
-      isRecordLoading,
-      paymentAmounts,
-    }) => (
-      <>
-        {s.studentStatus === "inactive" ? (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-sm bg-green-500 text-white">
-            <svg
-              className="w-3.5 h-3.5"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clipRule="evenodd"
-              />
-            </svg>
-            Paid
-          </span>
-        ) : (
-          <>
-            <div className="relative">
-              <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs">
-                $
-              </div>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={paymentAmounts[s.id] || ""}
-                className="w-28 pl-5 pr-8 py-1 text-xs border border-gray-600 rounded bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400"
-                disabled={isRecordLoading || displayInfo.status === "paid"}
-                onChange={(e) => handleAmountChange(s.id, e.target.value)}
-              />
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs">
-                CAD
-              </div>
-            </div>
-            <span
-              className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 text-xs font-medium rounded-sm ${
-                displayInfo.status === "paid"
-                  ? "bg-green-500 text-white"
-                  : "bg-red-500 text-white"
-              }`}
-            >
-              {displayInfo.status === "paid" ? (
-                <>
-                  <svg
-                    className="w-3.5 h-3.5 hidden sm:block"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  Paid
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="w-3.5 h-3.5 hidden sm:block"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  Unpaid
-                </>
-              )}
-            </span>
-            <div
-              onClick={isRecordLoading ? undefined : () => handleToggle(s.id)}
-              className={`w-6 h-6 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
-                displayInfo.status === "paid"
-                  ? "bg-green-500 border border-green-500"
-                  : "bg-gray-800 border border-gray-600"
-              } ${isRecordLoading ? "cursor-not-allowed opacity-50" : ""}`}
-            >
-              {displayInfo.status === "paid" && (
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              )}
-            </div>
-          </>
-        )}
-      </>
-    )
-  );
-
   return (
     <>
       <div className="grid grid-cols-3 gap-2 sm:gap-4 p-4 border-b border-gray-700">
@@ -663,10 +634,15 @@ export default function Table({
                 <div
                   ref={isLastElement ? lastStudentElementRef : null}
                   key={s.id}
+                  onClick={(e) => handleRowClick(s.id, e)}
                   className={`rounded-lg border border-gray-600 transition ${
                     s.studentStatus === "inactive"
                       ? "bg-red-900/20 hover:bg-red-900/30"
-                      : "bg-gray-700 hover:bg-gray-600"
+                      : `bg-gray-700 hover:bg-gray-600 ${
+                          editingStudentId !== s.id && !isRecordLoading
+                            ? "cursor-pointer"
+                            : ""
+                        }`
                   }`}
                 >
                   {/* Main Info Row */}
@@ -754,14 +730,120 @@ export default function Table({
                           isRecordLoading={isRecordLoading}
                         />
                       )}
-                      <PaymentControls
-                        s={s}
-                        displayInfo={displayInfo}
-                        handleToggle={handleToggle}
-                        handleAmountChange={handleAmountChange}
-                        isRecordLoading={isRecordLoading}
-                        paymentAmounts={paymentAmounts}
-                      />
+                      {/* Payment Controls for Desktop */}
+                      {s.studentStatus === "inactive" ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-sm bg-green-500 text-white">
+                          <svg
+                            className="w-3.5 h-3.5"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          Paid
+                        </span>
+                      ) : (
+                        <>
+                          <div className="relative">
+                            <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs">
+                              $
+                            </div>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={paymentAmounts[s.id] || ""}
+                              onChange={(e) => {
+                                handlePaymentAmountChange(s.id, e.target.value);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-28 pl-5 pr-8 py-1 text-xs border border-gray-600 rounded bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400"
+                              disabled={
+                                isRecordLoading || displayInfo.status === "paid"
+                              }
+                            />
+                            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs">
+                              CAD
+                            </div>
+                          </div>
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 text-xs font-medium rounded-sm ${
+                              displayInfo.status === "paid"
+                                ? "bg-green-500 text-white"
+                                : "bg-red-500 text-white"
+                            }`}
+                          >
+                            {displayInfo.status === "paid" ? (
+                              <>
+                                <svg
+                                  className="w-3.5 h-3.5 hidden sm:block"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                                Paid
+                              </>
+                            ) : (
+                              <>
+                                <svg
+                                  className="w-3.5 h-3.5 hidden sm:block"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                                Unpaid
+                              </>
+                            )}
+                          </span>
+                          <div
+                            onClick={
+                              isRecordLoading
+                                ? undefined
+                                : (e) => {
+                                    e.stopPropagation();
+                                    handleToggle(s.id);
+                                  }
+                            }
+                            className={`w-6 h-6 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
+                              displayInfo.status === "paid"
+                                ? "bg-green-500 border border-green-500"
+                                : "bg-gray-800 border border-gray-600"
+                            } ${
+                              isRecordLoading
+                                ? "cursor-not-allowed opacity-50"
+                                : ""
+                            }`}
+                          >
+                            {displayInfo.status === "paid" && (
+                              <svg
+                                className="w-5 h-5 text-white"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -780,14 +862,124 @@ export default function Table({
                         </div>
                       )}
                       <div className="flex-grow flex justify-end items-center gap-2">
-                        <PaymentControls
-                          s={s}
-                          displayInfo={displayInfo}
-                          handleToggle={handleToggle}
-                          handleAmountChange={handleAmountChange}
-                          isRecordLoading={isRecordLoading}
-                          paymentAmounts={paymentAmounts}
-                        />
+                        {/* Payment Controls for Mobile */}
+                        {s.studentStatus === "inactive" ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-sm bg-green-500 text-white">
+                            <svg
+                              className="w-3.5 h-3.5"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            Paid
+                          </span>
+                        ) : (
+                          <>
+                            <div className="relative">
+                              <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs">
+                                $
+                              </div>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={paymentAmounts[s.id] || ""}
+                                onChange={(e) => {
+                                  handlePaymentAmountChange(
+                                    s.id,
+                                    e.target.value
+                                  );
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-28 pl-5 pr-8 py-1 text-xs border border-gray-600 rounded bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400"
+                                disabled={
+                                  isRecordLoading ||
+                                  displayInfo.status === "paid"
+                                }
+                              />
+                              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs">
+                                CAD
+                              </div>
+                            </div>
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 text-xs font-medium rounded-sm ${
+                                displayInfo.status === "paid"
+                                  ? "bg-green-500 text-white"
+                                  : "bg-red-500 text-white"
+                              }`}
+                            >
+                              {displayInfo.status === "paid" ? (
+                                <>
+                                  <svg
+                                    className="w-3.5 h-3.5 hidden sm:block"
+                                    fill="currentColor"
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                  Paid
+                                </>
+                              ) : (
+                                <>
+                                  <svg
+                                    className="w-3.5 h-3.5 hidden sm:block"
+                                    fill="currentColor"
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                  Unpaid
+                                </>
+                              )}
+                            </span>
+                            <div
+                              onClick={
+                                isRecordLoading
+                                  ? undefined
+                                  : (e) => {
+                                      e.stopPropagation();
+                                      handleToggle(s.id);
+                                    }
+                              }
+                              className={`w-6 h-6 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
+                                displayInfo.status === "paid"
+                                  ? "bg-green-500 border border-green-500"
+                                  : "bg-gray-800 border border-gray-600"
+                              } ${
+                                isRecordLoading
+                                  ? "cursor-not-allowed opacity-50"
+                                  : ""
+                              }`}
+                            >
+                              {displayInfo.status === "paid" && (
+                                <svg
+                                  className="w-5 h-5 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -819,6 +1011,7 @@ export default function Table({
                                   name: e.target.value,
                                 })
                               }
+                              onClick={(e) => e.stopPropagation()}
                               className="w-full pl-3 pr-3 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400 text-sm"
                             />
                           </div>
@@ -837,6 +1030,7 @@ export default function Table({
                                   ),
                                 });
                               }}
+                              onClick={(e) => e.stopPropagation()}
                               className="w-full pl-3 pr-3 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400 text-sm"
                             />
                           </div>
@@ -854,6 +1048,7 @@ export default function Table({
                                     dob: e.target.value,
                                   })
                                 }
+                                onClick={(e) => e.stopPropagation()}
                                 className="w-full pl-3 pr-4 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400 text-sm [color-scheme:dark]"
                               />
                             </div>

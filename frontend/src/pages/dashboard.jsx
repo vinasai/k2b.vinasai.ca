@@ -44,6 +44,7 @@ export default function Dashboard() {
   );
   const [selectedClass, setSelectedClass] = useState(null);
   const [classes, setClasses] = useState([]);
+  const [classesLoaded, setClassesLoaded] = useState(false);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 500); // 500ms debounce delay
@@ -54,37 +55,42 @@ export default function Dashboard() {
   const [googleAuthUrl, setGoogleAuthUrl] = useState(null);
   const [isRecordLoading, setIsRecordLoading] = useState(false);
 
-  const isInitialLoad = statsLoading || (studentsLoading && currentPage === 1);
+  const isInitialLoad =
+    statsLoading || (studentsLoading && currentPage === 1) || !classesLoaded;
+
+  // Reset component state on mount (for handling refresh scenarios)
+  useEffect(() => {
+    setStudents([]);
+    setError(null);
+    setCurrentPage(1);
+    setHasNextPage(false);
+    setLoadingMore(false);
+    setGoogleAuthUrl(null);
+  }, []);
 
   // Initialize classes
   useEffect(() => {
-    // if (user?.role === "admin") {
-    //   api.get("/class").then((res) => {
-    //     const classes = res.data.data;
-    //     setClasses(classes);
-    //     if (classes.length > 0) {
-    //       const savedClassId = localStorage.getItem("selectedClassId");
-    //       const savedClass = classes.find((c) => c._id === savedClassId);
-    //       setSelectedClass(savedClass || classes[0]);
-    //     }
-    //   });
-    // } else if (user) {
-    //   setSelectedClass({
-    //     _id: user.classId,
-    //     className: user.className,
-    //     sheetId: user.sheetId,
-    //   });
-    // }
-
-    api.get("/class").then((res) => {
-      const classes = res.data.data;
-      setClasses(classes);
-      if (classes.length > 0) {
-        const savedClassId = localStorage.getItem("selectedClassId");
-        const savedClass = classes.find((c) => c._id === savedClassId);
-        setSelectedClass(savedClass || classes[0]);
+    const fetchClasses = async () => {
+      try {
+        const res = await api.get("/class");
+        const classes = res.data.data;
+        setClasses(classes);
+        setClassesLoaded(true);
+        if (classes.length > 0) {
+          const savedClassId = localStorage.getItem("selectedClassId");
+          const savedClass = classes.find((c) => c._id === savedClassId);
+          setSelectedClass(savedClass || classes[0]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch classes:", error);
+        setError("Failed to load classes. Please refresh the page.");
+        setClassesLoaded(true); // Set to true even on error to prevent infinite loading
       }
-    });
+    };
+
+    if (user) {
+      fetchClasses();
+    }
   }, [user]);
 
   // Reset when month or class changes
@@ -109,7 +115,21 @@ export default function Dashboard() {
 
   // Fetch data
   useEffect(() => {
-    if (!selectedClass?.sheetId) return;
+    if (!selectedClass?._id || !classesLoaded) {
+      console.log("Fetch blocked:", {
+        selectedClassId: selectedClass?._id,
+        classesLoaded,
+        selectedClass: selectedClass?.className,
+      });
+      return;
+    }
+
+    console.log("Starting fetch with:", {
+      selectedMonth,
+      selectedClassId: selectedClass._id,
+      filter,
+      currentPage,
+    });
 
     const fetchData = async () => {
       if (currentPage === 1) {
@@ -194,6 +214,7 @@ export default function Dashboard() {
     currentPage,
     statsLoading,
     debouncedSearch,
+    classesLoaded,
   ]);
 
   // Save preferences
@@ -210,11 +231,39 @@ export default function Dashboard() {
     }
   };
 
+  const handlePaymentAmountUpdate = async (studentId, amount) => {
+    try {
+      const { data } = await api.post("/students/update-amount", {
+        studentId,
+        amount: parseFloat(amount),
+        month: selectedMonth,
+        classId: selectedClass?._id,
+      });
+
+      if (data.success) {
+        // Update the local student data with the new amount
+        setStudents((prev) =>
+          prev.map((s) =>
+            s.id === studentId
+              ? {
+                  ...s,
+                  amount: parseFloat(amount),
+                }
+              : s
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Failed to update payment amount:", err);
+      throw err;
+    }
+  };
+
   const handlePaymentToggle = async (
     studentId,
     newStatus,
     markedBy,
-    amount
+    amount = null
   ) => {
     // Optimistic update for stats
     const originalStats = { ...stats };
@@ -226,14 +275,28 @@ export default function Dashboard() {
     }));
 
     try {
-      const { data } = await api.post("/students/update-status", {
+      const requestPayload = {
         studentId,
         newStatus,
         month: selectedMonth,
         classId: selectedClass?._id,
         markedBy,
-        amount,
-      });
+      };
+
+      // Add amount to payload if provided and status is paid
+      if (
+        newStatus === "paid" &&
+        amount !== null &&
+        amount !== "" &&
+        !isNaN(parseFloat(amount))
+      ) {
+        requestPayload.amount = parseFloat(amount);
+      }
+
+      const { data } = await api.post(
+        "/students/update-status",
+        requestPayload
+      );
 
       if (data.success) {
         // Use the payment date from the backend response if available
@@ -306,17 +369,25 @@ export default function Dashboard() {
               ? {
                   ...s,
                   status: newStatus,
-                  amount: newStatus === "paid" ? amount : null,
                   paymentDate: paymentDate,
                   paymentMarkedBy: newStatus === "paid" ? markedBy : "",
                   paymentDue: paymentDueForUpdate,
+                  amount:
+                    newStatus === "paid" && amount
+                      ? parseFloat(amount)
+                      : newStatus === "not-paid"
+                      ? null
+                      : s.amount,
                 }
               : s
           )
         );
 
-        // Return the payment date for the Table component to use
-        return { paymentDate };
+        // Return the payment date and amount for the Table component to use
+        return {
+          paymentDate,
+          amount: newStatus === "paid" && amount ? parseFloat(amount) : null,
+        };
       }
     } catch (err) {
       console.error("Failed to update payment status:", err);
@@ -513,6 +584,7 @@ export default function Dashboard() {
                 onUpdateStudent={handleUpdateStudent}
                 onDeleteStudent={handleDeleteStudent}
                 onRemoveFromClass={handleRemoveFromClass}
+                onPaymentAmountUpdate={handlePaymentAmountUpdate}
                 statsLoading={statsLoading}
                 studentsLoading={studentsLoading}
                 isInitialLoading={isInitialLoad}

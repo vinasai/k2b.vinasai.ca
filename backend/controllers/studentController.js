@@ -43,6 +43,131 @@ const formatDateOfBirth = (date) => {
   return `${month}/${day}/${year}`;
 };
 
+// @desc    Create a new student
+// @route   POST /api/students/create
+// @access  Private
+exports.createStudent = async (req, res) => {
+  const {
+    studentName,
+    dateOfBirth,
+    parentContactNumber,
+    parentWhatsAppNumber,
+    parentEmail,
+    class: classId,
+  } = req.body;
+
+  if (!studentName || !dateOfBirth || !parentContactNumber || !classId) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Missing required fields: studentName, dateOfBirth, parentContactNumber, class",
+    });
+  }
+
+  try {
+    // Verify that the class exists
+    const aClass = await Class.findById(classId);
+    if (!aClass) {
+      return res.status(404).json({
+        success: false,
+        message: "Class not found for the given classId",
+      });
+    }
+
+    // Create the student
+    const studentData = {
+      studentName: studentName.trim(),
+      dateOfBirth: new Date(dateOfBirth),
+      parentContactNumber,
+      class: classId,
+    };
+
+    // Add optional fields if provided
+    if (parentWhatsAppNumber) {
+      studentData.parentWhatsAppNumber = parentWhatsAppNumber;
+    }
+    if (parentEmail) {
+      studentData.parentEmail = parentEmail;
+    }
+
+    const student = await Student.create(studentData);
+
+    // Create payment records from current month to December of the current year
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth(); // 0-based (0 = January, 11 = December)
+    const allMonths = [
+      "JAN",
+      "FEB",
+      "MAR",
+      "APR",
+      "MAY",
+      "JUN",
+      "JUL",
+      "AUG",
+      "SEP",
+      "OCT",
+      "NOV",
+      "DEC",
+    ];
+
+    // Get months from current month to end of year
+    const remainingMonths = allMonths.slice(currentMonth);
+
+    const paymentRecords = remainingMonths.map((month) => ({
+      student: student._id,
+      month,
+      year: currentYear,
+      status: "not-paid",
+      amount: null,
+      paidAt: null,
+      markedBy: null,
+    }));
+
+    await PaymentRecord.insertMany(paymentRecords);
+
+    // Populate the student with class information for response
+    const populatedStudent = await Student.findById(student._id).populate(
+      "class"
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Student created successfully",
+      data: {
+        id: populatedStudent._id,
+        name: populatedStudent.studentName,
+        dob: formatDateOfBirth(populatedStudent.dateOfBirth),
+        parentPhone: formatPhoneNumber(populatedStudent.parentContactNumber),
+        parentWhatsApp: populatedStudent.parentWhatsAppNumber,
+        parentEmail: populatedStudent.parentEmail,
+        className: populatedStudent.class.className,
+        status: populatedStudent.status,
+        joinedAt: formatDate(populatedStudent.joinedAt),
+      },
+    });
+  } catch (error) {
+    console.error("Error creating student:", error);
+
+    // Handle validation errors
+    if (error.name === "ValidationError") {
+      const validationErrors = Object.values(error.errors).map(
+        (err) => err.message
+      );
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors: validationErrors,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Error creating student",
+      error: error.message,
+    });
+  }
+};
+
 const getStudentsByStatus = async (req, res, statusFilter) => {
   try {
     const { month: monthQuery, classId, page = 1, search } = req.query;
@@ -277,6 +402,73 @@ exports.getStudentStats = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error calculating student statistics",
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Update student payment amount
+// @route   POST /api/students/update-amount
+// @access  Private
+exports.updateStudentAmount = async (req, res) => {
+  const { studentId, amount, month, classId } = req.body;
+
+  if (!studentId || amount === undefined || !month || !classId) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields: studentId, amount, month, classId",
+    });
+  }
+
+  try {
+    const aClass = await Class.findOne({ _id: classId });
+    if (!aClass) {
+      return res.status(404).json({
+        success: false,
+        message: "Class not found for the given classId",
+      });
+    }
+
+    const student = await Student.findOne({
+      _id: studentId,
+    });
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Student not found" });
+    }
+
+    const year = new Date().getFullYear();
+
+    const updateData = {
+      amount: parseFloat(amount),
+    };
+
+    const paymentRecord = await PaymentRecord.findOneAndUpdate(
+      { student: student._id, month: month.toUpperCase(), year },
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (paymentRecord) {
+      res.status(200).json({
+        success: true,
+        message: "Payment amount updated successfully",
+        data: {
+          amount: paymentRecord.amount,
+        },
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: "Payment record not found or update failed",
+      });
+    }
+  } catch (error) {
+    console.error("Error updating payment amount:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error updating payment amount",
       error: error.message,
     });
   }

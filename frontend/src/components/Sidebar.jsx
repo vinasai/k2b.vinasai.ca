@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useContext } from "react";
 import { GlobalContext } from "../context/GlobalContext";
 import api from "../utils/axios";
 import Modal from "./Modal";
+import ReportsModal from "./ReportsModal";
 
 export default function Sidebar({
   sidebarOpen,
@@ -19,6 +20,7 @@ export default function Sidebar({
   const [classSearchQuery, setClassSearchQuery] = useState("");
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
   const monthPickerRef = useRef(null);
@@ -179,6 +181,10 @@ export default function Sidebar({
     setIsLoggingOut(true);
     await onLogout();
     // No need to set loading to false, as the component will unmount.
+  };
+
+  const handleReportsClick = () => {
+    setIsReportsModalOpen(true);
   };
 
   return (
@@ -355,7 +361,7 @@ export default function Sidebar({
           </div>
 
           {/* Month Selector Section */}
-          <div className="p-4 mx-4 mb-8 bg-gray-700/50 rounded-lg border border-gray-600/50 backdrop-blur-sm">
+          <div className="p-4 mx-4 mb-4 bg-gray-700/50 rounded-lg border border-gray-600/50 backdrop-blur-sm">
             <div className="relative" ref={monthPickerRef}>
               <button
                 onClick={() => setShowMonthPicker(!showMonthPicker)}
@@ -442,6 +448,55 @@ export default function Sidebar({
               </div>
             </div>
           </div>
+
+          {/* Reports Section */}
+          <div className="p-4 mx-4 mb-8 bg-gray-700/50 rounded-lg border border-gray-600/50 backdrop-blur-sm">
+            <button
+              // onClick={handleReportsClick}
+
+              className="w-full p-3 bg-gray-800 border border-gray-600 rounded-lg flex items-center justify-between hover:bg-gray-750 transition-colors duration-200 group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <svg
+                    className="w-5 h-5 text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <div className="text-sm font-semibold text-white">
+                    Reports
+                  </div>
+                  {/* <div className="text-xs text-gray-400">
+                    View payment analytics
+                  </div> */}
+                  <div className="text-xs text-gray-400">Comming soon...</div>
+                </div>
+              </div>
+              <svg
+                className="w-5 h-5 text-gray-400 group-hover:text-gray-300 transition-colors"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Install App Section */}
@@ -479,6 +534,12 @@ export default function Sidebar({
       >
         <p>Are you sure you want to logout?</p>
       </Modal>
+      <ReportsModal
+        isOpen={isReportsModalOpen}
+        onClose={() => setIsReportsModalOpen(false)}
+        classes={classes}
+        selectedClass={selectedClass}
+      />
     </>
   );
 }

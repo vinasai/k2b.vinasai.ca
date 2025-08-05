@@ -3,11 +3,13 @@ const {
   getStudents,
   getStudentStats,
   updateStudentStatus,
+  updateStudentAmount,
   getPaidStudents,
   getUnpaidStudents,
   updateStudent,
   deleteStudent,
   removeFromClass,
+  createStudent,
 } = require("../controllers/studentController");
 const { protect } = require("../middleware/auth");
 
@@ -25,8 +27,14 @@ router.get("/unpaid", protect, getUnpaidStudents);
 // Get student statistics
 router.get("/stats", protect, getStudentStats);
 
+//Create a new student
+router.post("/create", createStudent);
+
 // Update student status
 router.post("/update-status", protect, updateStudentStatus);
+
+// Update student payment amount
+router.post("/update-amount", protect, updateStudentAmount);
 
 // Update student details
 router.put("/", protect, updateStudent);
