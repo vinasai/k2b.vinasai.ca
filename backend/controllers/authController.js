@@ -81,7 +81,9 @@ exports.login = async (req, res, next) => {
   }
 };
 
-// backend/controllers/authController.js
+// @desc    Logout user
+// @route   POST /api/auth/logout
+// @access  Public
 
 exports.logout = (req, res) => {
   res.clearCookie("refreshToken", {

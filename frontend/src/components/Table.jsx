@@ -15,6 +15,7 @@ export default function Table({
   onPersistToggle,
   onUpdateStudent,
   onDeleteStudent,
+  onRemoveFromClass,
   studentsLoading = false,
   isInitialLoading = false,
   statsLoading = false,
@@ -39,6 +40,8 @@ export default function Table({
     dob: "",
   });
   const [studentToDelete, setStudentToDelete] = useState(null);
+  const [studentToRemove, setStudentToRemove] = useState(null);
+  const [paymentAmounts, setPaymentAmounts] = useState({});
   const editFormRef = useRef(null);
   const perPage = 15;
 
@@ -98,6 +101,16 @@ export default function Table({
     setStudentToDelete(null);
   };
 
+  const handleRemoveClick = (student) => {
+    setStudentToRemove(student);
+  };
+
+  const confirmRemove = async () => {
+    if (!studentToRemove) return;
+    await onRemoveFromClass(studentToRemove.id);
+    setStudentToRemove(null);
+  };
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (
@@ -136,10 +149,15 @@ export default function Table({
 
     // Capture the original status of each student for the current filter view
     const originalStatus = {};
+    const initialAmounts = {};
     students.forEach((student) => {
       originalStatus[student.id] = student.status;
+      if (student.amount) {
+        initialAmounts[student.id] = student.amount.toString();
+      }
     });
     setOriginalFilterStatus(originalStatus);
+    setPaymentAmounts(initialAmounts);
   }, [students, filter]);
 
   const monthMap = {
@@ -197,7 +215,11 @@ export default function Table({
     onFilterChange(newFilter);
   };
 
-  const handleToggle = async (studentId, studentName, dob, parentPhone) => {
+  const handleAmountChange = useCallback((studentId, amount) => {
+    setPaymentAmounts((prev) => ({ ...prev, [studentId]: amount.toString() }));
+  }, []);
+
+  const handleToggle = async (studentId) => {
     const originalStudent = students.find((s) => s.id === studentId);
     if (!originalStudent) return;
 
@@ -207,9 +229,30 @@ export default function Table({
 
     // Determine the new status
     const newStatus = statusBeforeToggle === "paid" ? "not-paid" : "paid";
+    const currentDate = new Date();
     const newPaymentDate =
-      newStatus === "paid" ? new Date().toLocaleDateString("en-GB") : "";
+      newStatus === "paid"
+        ? `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1)
+            .toString()
+            .padStart(2, "0")}-${currentDate
+            .getDate()
+            .toString()
+            .padStart(2, "0")} - ${currentDate
+            .getHours()
+            .toString()
+            .padStart(2, "0")}:${currentDate
+            .getMinutes()
+            .toString()
+            .padStart(2, "0")}:${currentDate
+            .getSeconds()
+            .toString()
+            .padStart(2, "0")}`
+        : "";
+    // Calculate due days only when changing to not-paid
+    const paymentDueForUpdate =
+      newStatus === "not-paid" ? calculateDueDays(month) : null;
     const markedBy = newStatus === "paid" ? user?.name || "" : "";
+    const amount = paymentAmounts[studentId] || null;
 
     const previousToggleState = toggledStudents[studentId];
 
@@ -218,16 +261,46 @@ export default function Table({
       ...prev,
       [studentId]: {
         status: newStatus,
-        paymentDate: newPaymentDate,
+        paymentDate: newStatus === "paid" ? "Loading..." : "",
         markedBy: markedBy,
-        paymentDue:
-          newStatus === "not-paid" ? calculateDueDays(month) : undefined,
+        amount: newStatus === "paid" ? amount : null,
+        paymentDue: paymentDueForUpdate,
+        isLoading: true,
       },
     }));
 
     try {
       // Notify the parent to persist the change
-      await onPersistToggle(studentName, dob, parentPhone, newStatus, markedBy);
+      const result = await onPersistToggle(
+        studentId,
+        newStatus,
+        markedBy,
+        amount
+      );
+
+      // Update with the actual date from backend
+      setToggledStudents((prev) => {
+        const updatedToggles = { ...prev };
+        if (updatedToggles[studentId]) {
+          updatedToggles[studentId] = {
+            ...updatedToggles[studentId],
+            paymentDate:
+              result?.paymentDate || updatedToggles[studentId].paymentDate,
+            isLoading: false,
+          };
+        }
+        return updatedToggles;
+      });
+
+      if (newStatus === "paid") {
+        setPaymentAmounts((prev) => {
+          const newAmounts = { ...prev };
+          delete newAmounts[studentId];
+          return newAmounts;
+        });
+      } else {
+        setPaymentAmounts((prev) => ({ ...prev, [studentId]: "" }));
+      }
     } catch (error) {
       setToggledStudents((prev) => {
         const revertedToggles = { ...prev };
@@ -270,6 +343,189 @@ export default function Table({
         <div className="w-7 h-7 bg-gray-600 rounded"></div>
       </div>
     </div>
+  );
+
+  const AdminButtons = ({
+    s,
+    handleEditClick,
+    handleRemoveClick,
+    handleDeleteClick,
+    isRecordLoading,
+  }) => (
+    <>
+      {s.studentStatus !== "inactive" && (
+        <button
+          onClick={() => handleEditClick(s)}
+          disabled={isRecordLoading}
+          className="p-1 text-gray-400 hover:text-white transition edit-button-class disabled:opacity-50"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z"
+            />
+          </svg>
+        </button>
+      )}
+      {s.studentStatus === "active" && (
+        <button
+          onClick={() => handleRemoveClick(s)}
+          disabled={isRecordLoading}
+          className="p-1 text-gray-400 hover:text-orange-500 transition disabled:opacity-50"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+            />
+          </svg>
+        </button>
+      )}
+      <button
+        onClick={() => handleDeleteClick(s)}
+        disabled={isRecordLoading}
+        className="p-1 text-gray-400 hover:text-red-500 transition disabled:opacity-50"
+      >
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+          />
+        </svg>
+      </button>
+    </>
+  );
+
+  const PaymentControls = React.memo(
+    ({
+      s,
+      displayInfo,
+      handleToggle,
+      handleAmountChange,
+      isRecordLoading,
+      paymentAmounts,
+    }) => (
+      <>
+        {s.studentStatus === "inactive" ? (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-sm bg-green-500 text-white">
+            <svg
+              className="w-3.5 h-3.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Paid
+          </span>
+        ) : (
+          <>
+            <div className="relative">
+              <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs">
+                $
+              </div>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={paymentAmounts[s.id] || ""}
+                className="w-28 pl-5 pr-8 py-1 text-xs border border-gray-600 rounded bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400"
+                disabled={isRecordLoading || displayInfo.status === "paid"}
+                onChange={(e) => handleAmountChange(s.id, e.target.value)}
+              />
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs">
+                CAD
+              </div>
+            </div>
+            <span
+              className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 text-xs font-medium rounded-sm ${
+                displayInfo.status === "paid"
+                  ? "bg-green-500 text-white"
+                  : "bg-red-500 text-white"
+              }`}
+            >
+              {displayInfo.status === "paid" ? (
+                <>
+                  <svg
+                    className="w-3.5 h-3.5 hidden sm:block"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Paid
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="w-3.5 h-3.5 hidden sm:block"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Unpaid
+                </>
+              )}
+            </span>
+            <div
+              onClick={isRecordLoading ? undefined : () => handleToggle(s.id)}
+              className={`w-6 h-6 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
+                displayInfo.status === "paid"
+                  ? "bg-green-500 border border-green-500"
+                  : "bg-gray-800 border border-gray-600"
+              } ${isRecordLoading ? "cursor-not-allowed opacity-50" : ""}`}
+            >
+              {displayInfo.status === "paid" && (
+                <svg
+                  className="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              )}
+            </div>
+          </>
+        )}
+      </>
+    )
   );
 
   return (
@@ -389,7 +645,10 @@ export default function Table({
                     status: toggledStudents[s.id].status,
                     paymentDate: toggledStudents[s.id].paymentDate,
                     paymentMarkedBy: toggledStudents[s.id].markedBy,
-                    paymentDue: toggledStudents[s.id].paymentDue,
+                    paymentDue:
+                      toggledStudents[s.id].paymentDue !== null
+                        ? toggledStudents[s.id].paymentDue
+                        : s.paymentDue,
                   }
                 : {
                     status: s.status,
@@ -404,8 +663,13 @@ export default function Table({
                 <div
                   ref={isLastElement ? lastStudentElementRef : null}
                   key={s.id}
-                  className="bg-gray-700 rounded-lg border border-gray-600 hover:bg-gray-600 transition"
+                  className={`rounded-lg border border-gray-600 transition ${
+                    s.studentStatus === "inactive"
+                      ? "bg-red-900/20 hover:bg-red-900/30"
+                      : "bg-gray-700 hover:bg-gray-600"
+                  }`}
                 >
+                  {/* Main Info Row */}
                   <div className="flex items-center justify-between p-2 sm:p-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-8 h-8 bg-blue-500 text-white flex items-center justify-center font-semibold text-sm rounded-lg flex-shrink-0">
@@ -428,13 +692,24 @@ export default function Table({
                               <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
                             </svg>
                             {s.parentPhone}
+                            {s.studentStatus === "inactive" && (
+                              <span className="italic text-red-400 ml-1">
+                                inactive
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="hidden sm:flex flex-col sm:flex-row sm:items-center sm:gap-3 mt-1">
                           <div className="text-xs text-gray-400">
-                            {displayInfo.status === "paid"
-                              ? `Paid: ${displayInfo.paymentDate}`
-                              : `Due: ${displayInfo.paymentDue} days`}
+                            {displayInfo.status === "paid" ? (
+                              displayInfo.isLoading ? (
+                                <span className="italic">Paid: Loading...</span>
+                              ) : (
+                                `Paid: ${displayInfo.paymentDate || "Today"}`
+                              )
+                            ) : (
+                              `Due: ${displayInfo.paymentDue || 0} days`
+                            )}
                           </div>
                           {displayInfo.status === "paid" &&
                             displayInfo.paymentMarkedBy && (
@@ -468,120 +743,56 @@ export default function Table({
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                    {/* DESKTOP Controls */}
+                    <div className="hidden sm:flex items-center gap-2 sm:gap-3 flex-shrink-0">
                       {user?.role === "admin" && (
-                        <>
-                          <button
-                            onClick={() => handleEditClick(s)}
-                            disabled={isRecordLoading}
-                            className="p-1 text-gray-400 hover:text-white transition edit-button-class disabled:opacity-50"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteClick(s)}
-                            disabled={isRecordLoading}
-                            className="p-1 text-gray-400 hover:text-red-500 transition disabled:opacity-50"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </>
+                        <AdminButtons
+                          s={s}
+                          handleEditClick={handleEditClick}
+                          handleRemoveClick={handleRemoveClick}
+                          handleDeleteClick={handleDeleteClick}
+                          isRecordLoading={isRecordLoading}
+                        />
                       )}
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 text-xs font-medium rounded-sm ${
-                          displayInfo.status === "paid"
-                            ? "bg-green-500 text-white"
-                            : "bg-red-500 text-white"
-                        }`}
-                      >
-                        {displayInfo.status === "paid" ? (
-                          <>
-                            <svg
-                              className="w-3.5 h-3.5 hidden sm:block"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            Paid
-                          </>
-                        ) : (
-                          <>
-                            <svg
-                              className="w-3.5 h-3.5 hidden sm:block"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            Unpaid
-                          </>
-                        )}
-                      </span>
-                      <div
-                        onClick={
-                          isRecordLoading
-                            ? undefined
-                            : () =>
-                                handleToggle(s.id, s.name, s.dob, s.parentPhone)
-                        }
-                        className={`w-7 h-7 rounded flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
-                          displayInfo.status === "paid"
-                            ? "bg-green-500 border border-green-500"
-                            : "bg-gray-800 border border-gray-600"
-                        } ${
-                          isRecordLoading ? "cursor-not-allowed opacity-50" : ""
-                        }`}
-                      >
-                        {displayInfo.status === "paid" && (
-                          <svg
-                            className="w-5 h-5 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        )}
+                      <PaymentControls
+                        s={s}
+                        displayInfo={displayInfo}
+                        handleToggle={handleToggle}
+                        handleAmountChange={handleAmountChange}
+                        isRecordLoading={isRecordLoading}
+                        paymentAmounts={paymentAmounts}
+                      />
+                    </div>
+                  </div>
+
+                  {/* MOBILE Controls */}
+                  <div className="block sm:hidden px-3 pb-3">
+                    <div className="border-t border-gray-600 mt-2 pt-3 flex items-center justify-between">
+                      {user?.role === "admin" && (
+                        <div className="flex items-center gap-1">
+                          <AdminButtons
+                            s={s}
+                            handleEditClick={handleEditClick}
+                            handleRemoveClick={handleRemoveClick}
+                            handleDeleteClick={handleDeleteClick}
+                            isRecordLoading={isRecordLoading}
+                          />
+                        </div>
+                      )}
+                      <div className="flex-grow flex justify-end items-center gap-2">
+                        <PaymentControls
+                          s={s}
+                          displayInfo={displayInfo}
+                          handleToggle={handleToggle}
+                          handleAmountChange={handleAmountChange}
+                          isRecordLoading={isRecordLoading}
+                          paymentAmounts={paymentAmounts}
+                        />
                       </div>
                     </div>
                   </div>
 
+                  {/* Collapsible Edit Form */}
                   <div
                     className={`transition-all duration-300 ease-in-out overflow-hidden ${
                       editingStudentId === s.id
@@ -661,13 +872,18 @@ export default function Table({
                     )}
                   </div>
 
+                  {/* Mobile-only Detailed Info */}
                   <div className="sm:hidden mt-2 pt-2 border-t border-gray-600 p-3">
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                       {displayInfo.status === "paid" ? (
                         <>
                           <div className="text-gray-400">Paid on</div>
                           <div className="font-medium text-white">
-                            {displayInfo.paymentDate}
+                            {displayInfo.isLoading ? (
+                              <span className="italic">Loading...</span>
+                            ) : (
+                              displayInfo.paymentDate || ""
+                            )}
                           </div>
                           {displayInfo.paymentMarkedBy && (
                             <>
@@ -682,7 +898,7 @@ export default function Table({
                         <>
                           <div className="text-gray-400">Due since</div>
                           <div className="font-medium text-white">
-                            {displayInfo.paymentDue} days
+                            {displayInfo.paymentDue || 0} days
                           </div>
                           {s.lastReminderDate && (
                             <>
@@ -742,10 +958,31 @@ export default function Table({
           title="Confirm Deletion"
         >
           <p>
-            Are you sure you want to delete{" "}
-            <span className="font-bold">{studentToDelete.name}</span>? This
-            action cannot be undone.
+            Are you sure you want to permanently delete{" "}
+            <span className="font-bold">{studentToDelete.name}</span> and all
+            associated payment records connected with this student? This action
+            cannot be undone.
           </p>
+        </Modal>
+      )}
+      {studentToRemove && (
+        <Modal
+          isOpen={!!studentToRemove}
+          onClose={() => setStudentToRemove(null)}
+          onConfirm={confirmRemove}
+          title="Remove from Class"
+          confirmButtonText="Remove"
+        >
+          <p>
+            Are you sure you want to remove{" "}
+            <span className="font-bold">{studentToRemove.name}</span> from the
+            class? This will:
+          </p>
+          <ul className="list-disc list-inside mt-2 text-sm text-gray-300">
+            <li>Set the student status to inactive</li>
+            <li>Delete all unpaid payment records</li>
+            <li>Keep paid payment records for historical purposes</li>
+          </ul>
         </Modal>
       )}
     </>

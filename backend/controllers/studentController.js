@@ -1,11 +1,8 @@
-const {
-  getStudentData,
-  getSpreadsheetInfo,
-  updateStudentPaymentStatus,
-  updateStudentDetails,
-  deleteStudentRow,
-} = require("../services/handleGoogleSheet");
-const { generateAuthUrl, authorize } = require("../utils/googleOAuthEngine");
+const Student = require("../models/Student");
+const Class = require("../models/Class");
+const PaymentRecord = require("../models/paymentRecord");
+const User = require("../models/User");
+const NotificationLog = require("../models/notificationLog");
 const formatPhoneNumber = require("../utils/formatPhone");
 
 const monthMap = {
@@ -23,56 +20,121 @@ const monthMap = {
   DEC: 11,
 };
 
-// @desc    Get all students from Google Sheets
-// @route   GET /api/students
-// @access  Private
-exports.getStudents = async (req, res) => {
-  try {
-    const { month: monthQuery, sheetId, page, search } = req.query;
+// Format date fields with time
+const formatDate = (date) => {
+  if (!date) return null;
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  const seconds = String(d.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} - ${hours}:${minutes}:${seconds}`;
+};
 
-    if (!sheetId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "sheetId is required" });
-    }
+// Format date of birth as mm/dd/yyyy
+const formatDateOfBirth = (date) => {
+  if (!date) return null;
+  const d = new Date(date);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${month}/${day}/${year}`;
+};
+
+const getStudentsByStatus = async (req, res, statusFilter) => {
+  try {
+    const { month: monthQuery, classId, page = 1, search } = req.query;
 
     const month =
       monthQuery?.toUpperCase() ||
       new Date().toLocaleString("default", { month: "short" }).toUpperCase();
+    const year = new Date().getFullYear();
+    const limit = 15;
+    const skip = (parseInt(page) - 1) * limit;
 
-    const { students, hasNextPage } = await getStudentData(
-      sheetId,
+    // Get all students (active and inactive) for the class
+    let studentQuery = { class: classId };
+    if (search) {
+      studentQuery.studentName = { $regex: search, $options: "i" };
+    }
+
+    const allStudents = await Student.find(studentQuery);
+    const activeStudentIds = allStudents
+      .filter((s) => s.status === "active")
+      .map((s) => s._id);
+    const inactiveStudentIds = allStudents
+      .filter((s) => s.status === "inactive")
+      .map((s) => s._id);
+
+    // For inactive students, only include those with paid records for the given month
+    let inactiveStudentsWithPaidRecords = [];
+    if (inactiveStudentIds.length > 0) {
+      const paidRecordsForInactive = await PaymentRecord.find({
+        student: { $in: inactiveStudentIds },
+        month,
+        year,
+        status: "paid",
+      }).populate("student");
+
+      inactiveStudentsWithPaidRecords = paidRecordsForInactive.map(
+        (pr) => pr.student._id
+      );
+    }
+
+    // Combine active students and inactive students with paid records
+    const eligibleStudentIds = [
+      ...activeStudentIds,
+      ...inactiveStudentsWithPaidRecords,
+    ];
+
+    let paymentQuery = {
+      student: { $in: eligibleStudentIds },
       month,
-      parseInt(page) || 1,
-      15,
-      "all",
-      search
-    );
+      year,
+    };
 
-    // Transform data to match frontend expectations
+    if (statusFilter) {
+      paymentQuery.status = statusFilter;
+    }
+
+    const totalRecords = await PaymentRecord.countDocuments(paymentQuery);
+    const paymentRecords = await PaymentRecord.find(paymentQuery)
+      .populate({
+        path: "student",
+        populate: {
+          path: "class",
+        },
+      })
+      .populate("markedBy", "name")
+      .skip(skip)
+      .limit(limit);
+
+    const hasNextPage = skip + paymentRecords.length < totalRecords;
+
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonthIndex = today.getMonth();
     const selectedMonthIndex = monthMap[month];
 
-    const transformedStudents = students.map((student) => {
-      const isPaid = !(
-        student.paymentStatus &&
-        student.paymentStatus.toLowerCase().includes("not")
-      );
-
-      const formattedPhone = formatPhoneNumber(student.parentPhone);
+    const transformedStudents = paymentRecords.map((pr) => {
+      const student = pr.student;
+      const isPaid = pr.status === "paid";
+      const formattedPhone = formatPhoneNumber(student.parentContactNumber);
 
       const studentData = {
-        id: student.id,
-        name: student.name,
-        dob: student.dob,
-        paymentDate: student.paymentDate,
-        lastReminderDate: student.lastReminderDate,
+        id: student._id,
+        name: student.studentName,
+        dob: formatDateOfBirth(student.dateOfBirth),
+        paymentDate: formatDate(pr.paidAt),
+        lastReminderDate: formatDate(pr.lastReminderAt),
         status: isPaid ? "paid" : "not-paid",
         parentPhone: formattedPhone,
-        paymentStatus: student.paymentStatus,
-        paymentMarkedBy: student.paymentMarkedBy,
+        paymentStatus: pr.status,
+        paymentMarkedBy: pr.markedBy?.name,
+        studentStatus: student.status,
+        amount: pr.amount,
       };
 
       if (!isPaid) {
@@ -82,22 +144,14 @@ exports.getStudents = async (req, res) => {
           selectedMonthIndex,
           1
         );
-
         if (selectedMonthIndex < currentMonthIndex) {
-          // Past month: days from the 1st of that month until today
           const msPerDay = 1000 * 60 * 60 * 24;
           diffDays = Math.floor((today - firstOfSelectedMonth) / msPerDay);
         } else if (selectedMonthIndex === currentMonthIndex) {
-          // Current month: days passed so far in this month
           diffDays = today.getDate();
-        } else {
-          // Future month: not due yet
-          diffDays = 0;
         }
-
         studentData.paymentDue = diffDays;
       }
-
       return studentData;
     });
 
@@ -108,295 +162,34 @@ exports.getStudents = async (req, res) => {
       hasNextPage,
     });
   } catch (error) {
-    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Your Google authentication has expired. Please log in again.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    if (error.code === "GOOGLE_AUTH_REQUIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Google Authentication is required.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    console.error("Error fetching students:", error);
+    console.error(`Error fetching students:`, error);
     res.status(500).json({
       success: false,
-      message: "Error fetching student data from Google Sheets",
+      message: `Error fetching student data`,
       error: error.message,
     });
   }
 };
 
-// @desc    Get all paid students from Google Sheets
+// @desc    Get all students from DB
+// @route   GET /api/students
+// @access  Private
+exports.getStudents = async (req, res) => {
+  await getStudentsByStatus(req, res, null);
+};
+
+// @desc    Get all paid students from DB
 // @route   GET /api/students/paid
 // @access  Private
 exports.getPaidStudents = async (req, res) => {
-  try {
-    const { month: monthQuery, sheetId, page, search } = req.query;
-
-    if (!sheetId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "sheetId is required" });
-    }
-
-    const month =
-      monthQuery?.toUpperCase() ||
-      new Date().toLocaleString("default", { month: "short" }).toUpperCase();
-
-    const { students, hasNextPage } = await getStudentData(
-      sheetId,
-      month,
-      parseInt(page) || 1,
-      15, // limit
-      "paid",
-      search
-    );
-
-    // Transform data to match frontend expectations
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonthIndex = today.getMonth();
-    const selectedMonthIndex = monthMap[month];
-
-    const transformedStudents = students.map((student) => {
-      const isPaid = !(
-        student.paymentStatus &&
-        student.paymentStatus.toLowerCase().includes("not")
-      );
-
-      const formattedPhone = formatPhoneNumber(student.parentPhone);
-
-      const studentData = {
-        id: student.id,
-        name: student.name,
-        dob: student.dob,
-        paymentDate: student.paymentDate,
-        lastReminderDate: student.lastReminderDate,
-        status: isPaid ? "paid" : "not-paid",
-        parentPhone: formattedPhone,
-        paymentStatus: student.paymentStatus,
-        paymentMarkedBy: student.paymentMarkedBy,
-      };
-
-      if (!isPaid) {
-        let diffDays;
-        if (selectedMonthIndex < currentMonthIndex) {
-          // Past month: all days are due.
-          const daysInMonth = new Date(
-            currentYear,
-            selectedMonthIndex + 1,
-            0
-          ).getDate();
-          diffDays = daysInMonth;
-        } else if (selectedMonthIndex === currentMonthIndex) {
-          // Current month: days passed so far.
-          diffDays = today.getDate();
-        } else {
-          // Future month: not due yet.
-          diffDays = 0;
-        }
-        studentData.paymentDue = diffDays;
-      }
-
-      return studentData;
-    });
-
-    res.status(200).json({
-      success: true,
-      count: transformedStudents.length,
-      data: transformedStudents,
-      hasNextPage,
-    });
-  } catch (error) {
-    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Your Google authentication has expired. Please log in again.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    if (error.code === "GOOGLE_AUTH_REQUIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Google Authentication is required.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    console.error("Error fetching students:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error fetching student data from Google Sheets",
-      error: error.message,
-    });
-  }
+  await getStudentsByStatus(req, res, "paid");
 };
 
-// @desc    Get all unpaid students from Google Sheets
+// @desc    Get all unpaid students from DB
 // @route   GET /api/students/unpaid
 // @access  Private
 exports.getUnpaidStudents = async (req, res) => {
-  try {
-    const { month: monthQuery, sheetId, page, search } = req.query;
-
-    if (!sheetId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "sheetId is required" });
-    }
-
-    const month =
-      monthQuery?.toUpperCase() ||
-      new Date().toLocaleString("default", { month: "short" }).toUpperCase();
-
-    const { students, hasNextPage } = await getStudentData(
-      sheetId,
-      month,
-      parseInt(page) || 1,
-      15, // limit
-      "not-paid",
-      search
-    );
-
-    // Transform data to match frontend expectations
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonthIndex = today.getMonth();
-    const selectedMonthIndex = monthMap[month];
-
-    const transformedStudents = students.map((student) => {
-      const isPaid = !(
-        student.paymentStatus &&
-        student.paymentStatus.toLowerCase().includes("not")
-      );
-
-      const studentData = {
-        id: student.id,
-        name: student.name,
-        dob: student.dob,
-        paymentDate: student.paymentDate,
-        lastReminderDate: student.lastReminderDate,
-        status: isPaid ? "paid" : "not-paid",
-        parentPhone: student.parentPhone,
-        paymentStatus: student.paymentStatus,
-        paymentMarkedBy: student.paymentMarkedBy,
-      };
-
-      if (!isPaid) {
-        let diffDays;
-        if (selectedMonthIndex < currentMonthIndex) {
-          // Past month: all days are due.
-          const daysInMonth = new Date(
-            currentYear,
-            selectedMonthIndex + 1,
-            0
-          ).getDate();
-          diffDays = daysInMonth;
-        } else if (selectedMonthIndex === currentMonthIndex) {
-          // Current month: days passed so far.
-          diffDays = today.getDate();
-        } else {
-          // Future month: not due yet.
-          diffDays = 0;
-        }
-        studentData.paymentDue = diffDays;
-      }
-
-      return studentData;
-    });
-
-    res.status(200).json({
-      success: true,
-      count: transformedStudents.length,
-      data: transformedStudents,
-      hasNextPage,
-    });
-  } catch (error) {
-    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Your Google authentication has expired. Please log in again.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    if (error.code === "GOOGLE_AUTH_REQUIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Google Authentication is required.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    console.error("Error fetching students:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error fetching student data from Google Sheets",
-      error: error.message,
-    });
-  }
-};
-
-// @desc    Get spreadsheet information
-// @route   GET /api/students/spreadsheet-info
-// @access  Private
-exports.getSpreadsheetInfo = async (req, res) => {
-  const { sheetId } = req.query;
-
-  if (!sheetId) {
-    return res
-      .status(400)
-      .json({ success: false, message: "sheetId is required" });
-  }
-
-  try {
-    const auth = await authorize();
-    if (!auth) {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Google Authentication is required.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    const info = await getSpreadsheetInfo(auth, sheetId);
-
-    res.status(200).json({
-      success: true,
-      data: info,
-    });
-  } catch (error) {
-    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Your Google authentication has expired. Please log in again.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    console.error("Error fetching spreadsheet info:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error fetching spreadsheet information",
-      error: error.message,
-    });
-  }
+  await getStudentsByStatus(req, res, "not-paid");
 };
 
 // @desc    Get student statistics
@@ -404,29 +197,75 @@ exports.getSpreadsheetInfo = async (req, res) => {
 // @access  Private
 exports.getStudentStats = async (req, res) => {
   try {
-    const { month: monthQuery, sheetId } = req.query;
+    const { month: monthQuery, classId } = req.query;
 
-    if (!sheetId) {
+    if (!classId) {
       return res
         .status(400)
-        .json({ success: false, message: "sheetId is required" });
+        .json({ success: false, message: "classId is required" });
+    }
+
+    const aClass = await Class.findOne({ _id: classId });
+    if (!aClass) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Class not found" });
     }
 
     const month =
       monthQuery?.toUpperCase() ||
       new Date().toLocaleString("default", { month: "short" }).toUpperCase();
+    const year = new Date().getFullYear();
 
-    // Fetch all students for stats calculation by passing page 0
-    const { students } = await getStudentData(sheetId, month, 0);
+    // Get all students (active and inactive) for the class
+    const allStudentsInClass = await Student.find({ class: aClass._id });
+    const activeStudentIds = allStudentsInClass
+      .filter((s) => s.status === "active")
+      .map((s) => s._id);
+    const inactiveStudentIds = allStudentsInClass
+      .filter((s) => s.status === "inactive")
+      .map((s) => s._id);
+
+    // For inactive students, only include those with paid records for the given month
+    let inactiveStudentsWithPaidRecords = [];
+    if (inactiveStudentIds.length > 0) {
+      const paidRecordsForInactive = await PaymentRecord.find({
+        student: { $in: inactiveStudentIds },
+        month,
+        year,
+        status: "paid",
+      });
+
+      inactiveStudentsWithPaidRecords = paidRecordsForInactive.map(
+        (pr) => pr.student
+      );
+    }
+
+    // Combine active students and inactive students with paid records
+    const eligibleStudentIds = [
+      ...activeStudentIds,
+      ...inactiveStudentsWithPaidRecords,
+    ];
+
+    const paymentQuery = {
+      student: { $in: eligibleStudentIds },
+      month,
+      year,
+    };
+
+    const paid = await PaymentRecord.countDocuments({
+      ...paymentQuery,
+      status: "paid",
+    });
+    const unpaid = await PaymentRecord.countDocuments({
+      ...paymentQuery,
+      status: "not-paid",
+    });
 
     const stats = {
-      total: students.length,
-      paid: students.filter(
-        (s) => s.paymentStatus && !s.paymentStatus.toLowerCase().includes("not")
-      ).length,
-      unpaid: students.filter(
-        (s) => !s.paymentStatus || s.paymentStatus.toLowerCase().includes("not")
-      ).length,
+      total: paid + unpaid,
+      paid,
+      unpaid,
     };
 
     res.status(200).json({
@@ -434,24 +273,6 @@ exports.getStudentStats = async (req, res) => {
       data: stats,
     });
   } catch (error) {
-    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Your Google authentication has expired. Please log in again.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    if (error.code === "GOOGLE_AUTH_REQUIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Google Authentication is required.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
     console.error("Error calculating stats:", error);
     res.status(500).json({
       success: false,
@@ -465,37 +286,54 @@ exports.getStudentStats = async (req, res) => {
 // @route   POST /api/students/update-status
 // @access  Private
 exports.updateStudentStatus = async (req, res) => {
-  const { studentName, dob, newStatus, month, sheetId, markedBy } = req.body;
+  const { studentId, newStatus, month, classId, amount } = req.body;
 
-  if (!studentName || !dob || !newStatus || !month || !sheetId) {
+  if (!studentId || !newStatus || !month || !classId) {
     return res.status(400).json({
       success: false,
-      message:
-        "Missing required fields: studentName, dob,  newStatus, month, sheetId",
+      message: "Missing required fields: studentId, newStatus, month, classId",
     });
   }
 
-  console.log(studentName);
-  console.log(dob);
-  console.log(newStatus);
-  console.log(month);
-  console.log(sheetId);
-  console.log(markedBy);
-
   try {
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    const aClass = await Class.findOne({ _id: classId });
+    if (!aClass) {
+      return res.status(404).json({
+        success: false,
+        message: "Class not found for the given classId",
+      });
+    }
 
-    const success = await updateStudentPaymentStatus(
-      sheetId,
-      studentName,
-      dob,
-      //parentPhone,
-      newStatus,
-      month.toUpperCase(),
-      markedBy
+    const student = await Student.findOne({
+      _id: studentId,
+    });
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Student not found" });
+    }
+
+    const year = new Date().getFullYear();
+
+    const updateData = {
+      status: newStatus,
+      paidAt: newStatus === "paid" ? new Date() : null,
+      markedBy: req.user.id,
+    };
+
+    if (newStatus === "paid" && amount) {
+      updateData.amount = amount;
+    } else if (newStatus === "not-paid") {
+      updateData.amount = null;
+    }
+
+    const paymentRecord = await PaymentRecord.findOneAndUpdate(
+      { student: student._id, month: month.toUpperCase(), year },
+      updateData,
+      { new: true, runValidators: true }
     );
 
-    if (success) {
+    if (paymentRecord) {
       res.status(200).json({
         success: true,
         message: "Student payment status updated successfully",
@@ -503,28 +341,10 @@ exports.updateStudentStatus = async (req, res) => {
     } else {
       res.status(404).json({
         success: false,
-        message: "Student not found or update failed",
+        message: "Payment record not found or update failed",
       });
     }
   } catch (error) {
-    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Your Google authentication has expired. Please log in again.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    if (error.code === "GOOGLE_AUTH_REQUIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Google Authentication is required.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
     console.error("Error updating student status:", error);
     res.status(500).json({
       success: false,
@@ -535,67 +355,40 @@ exports.updateStudentStatus = async (req, res) => {
 };
 
 // @desc    Update student details
-// @route   PUT /api/students/:id
+// @route   PUT /api/students
 // @access  Private
 exports.updateStudent = async (req, res) => {
-  const { id } = req.params;
-  const { sheetId, ...updatedData } = req.body;
+  const { id } = req.query;
+  const updatedData = req.body;
 
-  console.log("updating", id);
-  console.log(sheetId);
-  console.log(updatedData);
-
-  if (!sheetId) {
+  if (!id) {
     return res
       .status(400)
-      .json({ success: false, message: "sheetId is required" });
+      .json({ success: false, message: "Student ID is required" });
   }
 
   try {
-    const dataToUpdateInSheet = { ...updatedData };
-    if (dataToUpdateInSheet.name && dataToUpdateInSheet.dob) {
-      dataToUpdateInSheet.id = `${dataToUpdateInSheet.name}-${dataToUpdateInSheet.dob}`;
-    }
+    //delete updatedData.classId;
 
-    const success = await updateStudentDetails(
-      sheetId,
-      id,
-      dataToUpdateInSheet
-    );
+    const student = await Student.findByIdAndUpdate(id, updatedData, {
+      new: true,
+      runValidators: true,
+    });
 
-    console.log(success);
-
-    if (success) {
+    if (student) {
       res.status(200).json({
         success: true,
         message: "Student details updated successfully",
+        data: student,
       });
     } else {
       res.status(404).json({
         success: false,
-        message: "Student not found in any sheets or update failed",
+        message: "Student not found or update failed",
       });
     }
   } catch (error) {
     console.error("Error updating student details:", error);
-    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Your Google authentication has expired. Please log in again.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    if (error.code === "GOOGLE_AUTH_REQUIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Google Authentication is required.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
     res.status(500).json({
       success: false,
       message: "Error updating student details",
@@ -605,59 +398,106 @@ exports.updateStudent = async (req, res) => {
 };
 
 // @desc    Delete a student
-// @route   DELETE /api/students/:id
+// @route   DELETE /api/students
 // @access  Private
 exports.deleteStudent = async (req, res) => {
-  const { id } = req.params;
-  const { sheetId } = req.query;
+  const { id } = req.query;
 
-  console.log("deleting", id);
-  console.log(sheetId);
-
-  if (!sheetId) {
+  if (!id) {
     return res
       .status(400)
-      .json({ success: false, message: "sheetId is required" });
+      .json({ success: false, message: "Student ID is required" });
   }
 
   try {
-    const success = await deleteStudentRow(sheetId, id);
-
-    console.log(success);
-
-    if (success) {
-      res
-        .status(200)
-        .json({ success: true, message: "Student deleted successfully" });
-    } else {
-      res.status(404).json({
-        success: false,
-        message: "Student not found in any sheets or delete failed",
-      });
+    const student = await Student.findById(id);
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Student not found" });
     }
+
+    const paymentRecords = await PaymentRecord.find({
+      student: id,
+    });
+    const paymentRecordIds = paymentRecords.map((pr) => pr._id);
+
+    await NotificationLog.deleteMany({
+      paymentRecord: { $in: paymentRecordIds },
+    });
+
+    await PaymentRecord.deleteMany({ student: id });
+
+    await Student.findByIdAndDelete(id);
+
+    res
+      .status(200)
+      .json({ success: true, message: "Student deleted successfully" });
   } catch (error) {
     console.error("Error deleting student:", error);
-    if (error.code === "GOOGLE_TOKEN_EXPIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Your Google authentication has expired. Please log in again.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
-    if (error.code === "GOOGLE_AUTH_REQUIRED") {
-      const authUrl = await generateAuthUrl();
-      return res.status(401).json({
-        success: false,
-        message: "Google Authentication is required.",
-        googleAuth: true,
-        authUrl,
-      });
-    }
     res.status(500).json({
       success: false,
       message: "Error deleting student",
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Remove student from class
+// @route   POST /api/students/remove
+// @access  Private
+exports.removeFromClass = async (req, res) => {
+  const { id } = req.query;
+
+  if (!id) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Student ID is required" });
+  }
+
+  try {
+    const student = await Student.findById(id);
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Student not found" });
+    }
+
+    // Update student status to inactive and set inactiveFrom date
+    await Student.findByIdAndUpdate(id, {
+      status: "inactive",
+      inactiveFrom: new Date(),
+    });
+
+    // Find all unpaid payment records for this student
+    const unpaidPaymentRecords = await PaymentRecord.find({
+      student: id,
+      status: "not-paid",
+    });
+
+    // Delete notification logs for unpaid records
+    if (unpaidPaymentRecords.length > 0) {
+      const unpaidPaymentRecordIds = unpaidPaymentRecords.map((pr) => pr._id);
+      await NotificationLog.deleteMany({
+        paymentRecord: { $in: unpaidPaymentRecordIds },
+      });
+    }
+
+    // Delete only unpaid payment records (keep paid ones)
+    await PaymentRecord.deleteMany({
+      student: id,
+      status: "not-paid",
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Student removed from class successfully",
+    });
+  } catch (error) {
+    console.error("Error removing student from class:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error removing student from class",
       error: error.message,
     });
   }

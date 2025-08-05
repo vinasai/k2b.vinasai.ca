@@ -20,12 +20,7 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: [
-      "https://k2b.vinasai.ca",
-      "http://localhost:5175",
-      "http://localhost:4173",
-      "http://localhost:5176",
-    ],
+    origin: ["https://k2b.vinasai.ca", "http://localhost:5175"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -38,10 +33,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Connect to MongoDB
 mongoose
-  .connect(
-    process.env.MONGODB_URI ||
-      "mongodb+srv://k2bUSer:jXFPj3tKDNuANtkn@cluster0.rdmxohw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-  )
+  .connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log("MongoDB connected successfully");
   })
@@ -56,7 +48,7 @@ app.use("/api/class", classRoutes);
 
 // Basic route for testing
 app.get("/api/health", (req, res) => {
-  res.status(200).json({ message: "Server is running v2.0-bug.1.01" });
+  res.status(200).json({ message: "Server is running v2.1" });
 });
 
 // Error handling middleware
@@ -68,7 +60,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 5018;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

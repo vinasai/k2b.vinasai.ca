@@ -199,7 +199,7 @@ export default function Sidebar({
             <div className="text-xl font-bold text-blue-400 mb-1">
               K2B Dance Studios
             </div>
-            <div className="text-sm text-gray-400">Payment Management v2.0</div>
+            <div className="text-sm text-gray-400">Payment Management v2.1</div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -237,97 +237,100 @@ export default function Sidebar({
               </div>
             ) : (
               <>
-                <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-xl font-semibold text-white mb-4 shadow-lg">
-                  {getInitials(user?.name)}
-                </div>
-                <div className="mb-6">
-                  <div className="text-lg font-semibold text-white mb-1">
-                    {user?.name}
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-lg font-semibold text-white shadow-lg">
+                    {getInitials(user?.name)}
                   </div>
-                  <div className="text-sm text-gray-400 mb-1">
-                    {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
-                  </div>
-                  {!selectedClass ? (
-                    <div
-                      className="h-4 bg-gray-600 rounded w-20 animate-pulse mt-1"
-                      data-testid="class-skeleton"
-                    ></div>
-                  ) : (
-                    <div className="relative" ref={classPickerRef}>
-                      <button
-                        onClick={() => setShowClassPicker(!showClassPicker)}
-                        className="text-sm text-blue-400 font-medium flex items-center gap-2"
-                      >
-                        <span>
-                          Class:{" "}
-                          {selectedClass?.className
-                            ? selectedClass.className.length > 17
-                              ? `${selectedClass.className.slice(0, 17)}...`
-                              : selectedClass.className
-                            : ""}
-                        </span>
-
-                        <svg
-                          className={`w-4 h-4 transition-transform duration-200 ${
-                            showClassPicker ? "rotate-180" : ""
-                          }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </button>
-                      {showClassPicker && (
-                        <div className="absolute top-full left-0 right-0 mt-2 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-60 min-w-[235px] max-w-[400px] overflow-y-auto z-350 custom-scrollbar">
-                          <div className="p-2">
-                            <input
-                              type="text"
-                              placeholder="Search classes..."
-                              value={classSearchQuery}
-                              onChange={(e) =>
-                                setClassSearchQuery(e.target.value)
-                              }
-                              className="w-full px-3 py-1 mb-1 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1 p-2">
-                            {classes
-                              .filter((classItem) =>
-                                classItem.className
-                                  .toLowerCase()
-                                  .includes(classSearchQuery.toLowerCase())
-                              )
-                              .map((classItem) => (
-                                <button
-                                  key={classItem._id}
-                                  onClick={() => handleClassSelect(classItem)}
-                                  className={`px-3 py-2 text-sm text-left rounded-md transition-colors duration-150 truncate ${
-                                    selectedClass?._id === classItem._id
-                                      ? "bg-blue-600 text-white font-semibold"
-                                      : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                                  }`}
-                                  style={{ maxWidth: "350px" }}
-                                >
-                                  <span
-                                    className="truncate block w-full"
-                                    title={classItem.className}
-                                  >
-                                    {classItem.className}
-                                  </span>
-                                </button>
-                              ))}
-                          </div>
-                        </div>
-                      )}
+                  <div className="flex flex-col">
+                    <div className="text-lg font-semibold text-white">
+                      {user?.name}
                     </div>
-                  )}
+                    <div className="text-sm text-gray-400">
+                      {user?.role?.charAt(0).toUpperCase() +
+                        user?.role?.slice(1)}
+                    </div>
+                  </div>
                 </div>
+                {!selectedClass ? (
+                  <div
+                    className="h-4 bg-gray-600 rounded w-20 animate-pulse mt-1 mb-4"
+                    data-testid="class-skeleton"
+                  ></div>
+                ) : (
+                  <div className="relative mb-4" ref={classPickerRef}>
+                    <button
+                      onClick={() => setShowClassPicker(!showClassPicker)}
+                      className="text-sm text-blue-400 font-medium flex items-center gap-2"
+                    >
+                      <span>
+                        Class:{" "}
+                        {selectedClass?.className
+                          ? selectedClass.className.length > 17
+                            ? `${selectedClass.className.slice(0, 17)}...`
+                            : selectedClass.className
+                          : ""}
+                      </span>
+
+                      <svg
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          showClassPicker ? "rotate-180" : ""
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    {showClassPicker && (
+                      <div className="absolute top-full left-0 right-0 mt-2 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-60 min-w-[235px] max-w-[400px] overflow-y-auto z-350 custom-scrollbar">
+                        <div className="p-2">
+                          <input
+                            type="text"
+                            placeholder="Search classes..."
+                            value={classSearchQuery}
+                            onChange={(e) =>
+                              setClassSearchQuery(e.target.value)
+                            }
+                            className="w-full px-3 py-1 mb-1 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1 p-2">
+                          {classes
+                            .filter((classItem) =>
+                              classItem.className
+                                .toLowerCase()
+                                .includes(classSearchQuery.toLowerCase())
+                            )
+                            .map((classItem) => (
+                              <button
+                                key={classItem._id}
+                                onClick={() => handleClassSelect(classItem)}
+                                className={`px-3 py-2 text-sm text-left rounded-md transition-colors duration-150 truncate ${
+                                  selectedClass?._id === classItem._id
+                                    ? "bg-blue-600 text-white font-semibold"
+                                    : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                                }`}
+                                style={{ maxWidth: "350px" }}
+                              >
+                                <span
+                                  className="truncate block w-full"
+                                  title={classItem.className}
+                                >
+                                  {classItem.className}
+                                </span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button
                   onClick={() => setIsLogoutModalOpen(true)}
                   className="w-full py-2.5 bg-red-500 text-white rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-red-600 transition-colors duration-200 shadow-md"

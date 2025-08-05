@@ -3,7 +3,7 @@ const {
   getClassDetails,
   getAllClasses,
 } = require("../controllers/classController");
-const { protect, authorize } = require("../middleware/auth");
+const { protect } = require("../middleware/auth");
 const router = express.Router();
 
 router.get("/details", protect, getClassDetails);

@@ -126,7 +126,7 @@ export default function Dashboard() {
 
         const params = new URLSearchParams({
           month: selectedMonth,
-          sheetId: selectedClass.sheetId,
+          classId: selectedClass._id,
           page: currentPage,
         });
 
@@ -153,7 +153,7 @@ export default function Dashboard() {
         if (statsLoading) {
           try {
             const statsRes = await api.get(
-              `/students/stats?month=${selectedMonth}&sheetId=${selectedClass.sheetId}`
+              `/students/stats?month=${selectedMonth}&classId=${selectedClass._id}`
             );
             if (statsRes.data.success) {
               setStats(statsRes.data.data);
@@ -211,11 +211,10 @@ export default function Dashboard() {
   };
 
   const handlePaymentToggle = async (
-    studentName,
-    dob,
-    parentPhone,
+    studentId,
     newStatus,
-    markedBy
+    markedBy,
+    amount
   ) => {
     // Optimistic update for stats
     const originalStats = { ...stats };
@@ -227,15 +226,98 @@ export default function Dashboard() {
     }));
 
     try {
-      await api.post("/students/update-status", {
-        studentName,
-        dob,
-        parentPhone,
+      const { data } = await api.post("/students/update-status", {
+        studentId,
         newStatus,
         month: selectedMonth,
-        sheetId: selectedClass?.sheetId,
+        classId: selectedClass?._id,
         markedBy,
+        amount,
       });
+
+      if (data.success) {
+        // Use the payment date from the backend response if available
+        let paymentDate = "";
+
+        if (newStatus === "paid") {
+          // If backend provides a date, use it, otherwise format our own
+          if (data.paymentDate) {
+            paymentDate = data.paymentDate;
+          } else {
+            const currentDate = new Date();
+            paymentDate = `${currentDate.getFullYear()}-${(
+              currentDate.getMonth() + 1
+            )
+              .toString()
+              .padStart(2, "0")}-${currentDate
+              .getDate()
+              .toString()
+              .padStart(2, "0")} - ${currentDate
+              .getHours()
+              .toString()
+              .padStart(2, "0")}:${currentDate
+              .getMinutes()
+              .toString()
+              .padStart(2, "0")}:${currentDate
+              .getSeconds()
+              .toString()
+              .padStart(2, "0")}`;
+          }
+        }
+        // Calculate due days for unpaid status
+        const calculateDueDays = (monthName) => {
+          const monthMap = {
+            JAN: 0,
+            FEB: 1,
+            MAR: 2,
+            APR: 3,
+            MAY: 4,
+            JUN: 5,
+            JUL: 6,
+            AUG: 7,
+            SEP: 8,
+            OCT: 9,
+            NOV: 10,
+            DEC: 11,
+          };
+
+          const today = new Date();
+          const currentYear = today.getFullYear();
+          const currentMonthIndex = today.getMonth();
+          const selectedMonthIndex = monthMap[monthName];
+
+          if (selectedMonthIndex < currentMonthIndex) {
+            const firstOfMonth = new Date(currentYear, selectedMonthIndex, 1);
+            const msPerDay = 1000 * 60 * 60 * 24;
+            return Math.floor((today - firstOfMonth) / msPerDay);
+          } else if (selectedMonthIndex === currentMonthIndex) {
+            return today.getDate();
+          } else {
+            return 0;
+          }
+        };
+
+        const paymentDueForUpdate =
+          newStatus === "not-paid" ? calculateDueDays(selectedMonth) : null;
+
+        setStudents((prev) =>
+          prev.map((s) =>
+            s.id === studentId
+              ? {
+                  ...s,
+                  status: newStatus,
+                  amount: newStatus === "paid" ? amount : null,
+                  paymentDate: paymentDate,
+                  paymentMarkedBy: newStatus === "paid" ? markedBy : "",
+                  paymentDue: paymentDueForUpdate,
+                }
+              : s
+          )
+        );
+
+        // Return the payment date for the Table component to use
+        return { paymentDate };
+      }
     } catch (err) {
       console.error("Failed to update payment status:", err);
       setError("Failed to save payment status. The change has been reverted.");
@@ -251,39 +333,18 @@ export default function Dashboard() {
     });
     setIsRecordLoading(true);
     try {
-      // await api.put(
-      //   `https://k2b.vinasai.ca/api/students/${encodeURIComponent(studentId)}`,
-      //   {
-      //     ...updatedData,
-      //     sheetId: selectedClass?.sheetId,
-      //   }
-      // );
-
-      await axios.put(
-        `http://localhost:5018/api/students/${encodeURIComponent(studentId)}`,
-        {
-          ...updatedData,
-          sheetId: selectedClass?.sheetId,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
-      );
+      await api.put(`/students?id=${studentId}`, {
+        ...updatedData,
+        classId: selectedClass?._id,
+      });
 
       setStudents((prev) =>
         prev.map((s) => {
-          if (s.id === studentId) {
-            const newId = `${updatedData.name}-${updatedData.dob}`;
-            return {
-              ...s,
-              ...updatedData,
-              id: newId,
-              parentPhone: formatPhoneNumber(updatedData.parentPhone),
-            };
-          }
-          return s;
+          return {
+            ...s,
+            ...updatedData,
+            parentPhone: formatPhoneNumber(updatedData.parentPhone),
+          };
         })
       );
 
@@ -323,12 +384,7 @@ export default function Dashboard() {
     const studentToDelete = students.find((s) => s.id === studentId);
 
     try {
-      await api.delete(
-        `/students/${encodeURIComponent(studentId)}?sheetId=${
-          selectedClass?.sheetId
-        }`
-      );
-
+      await api.delete(`/students?id=${studentId}`);
       setStudents((prev) => prev.filter((s) => s.id !== studentId));
 
       if (studentToDelete) {
@@ -359,6 +415,39 @@ export default function Dashboard() {
         duration: 4000, // Auto-dismiss after 4 seconds
       });
       throw err; // Add throw to maintain error propagation
+    } finally {
+      setIsRecordLoading(false);
+    }
+  };
+
+  const handleRemoveFromClass = async (studentId) => {
+    const toastId = toast.loading("Removing student from class...", {
+      duration: Infinity,
+    });
+    setIsRecordLoading(true);
+    const studentToRemove = students.find((s) => s.id === studentId);
+
+    try {
+      await api.post(`/students/remove?id=${studentId}`);
+
+      // Update the student status to inactive in the local state
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === studentId ? { ...s, studentStatus: "inactive" } : s
+        )
+      );
+
+      toast.success("Student removed from class successfully", {
+        id: toastId,
+        duration: 4000,
+      });
+    } catch (err) {
+      console.error("Failed to remove student from class:", err);
+      toast.error("Failed to remove student from class.", {
+        id: toastId,
+        duration: 4000,
+      });
+      throw err;
     } finally {
       setIsRecordLoading(false);
     }
@@ -423,9 +512,10 @@ export default function Dashboard() {
                 onPersistToggle={handlePaymentToggle}
                 onUpdateStudent={handleUpdateStudent}
                 onDeleteStudent={handleDeleteStudent}
+                onRemoveFromClass={handleRemoveFromClass}
                 statsLoading={statsLoading}
-                studentsLoading={studentsLoading} // KEEP this for disabling filters
-                isInitialLoading={isInitialLoad} // ADD THIS PROP
+                studentsLoading={studentsLoading}
+                isInitialLoading={isInitialLoad}
                 isPageLoading={loadingMore}
                 isRecordLoading={isRecordLoading}
                 stats={stats}

@@ -24,11 +24,7 @@ exports.protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET ||
-        "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6"
-    );
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     req.user = await User.findById(decoded.id);
 
@@ -58,14 +54,12 @@ exports.authorize = (...roles) => {
 exports.generateToken = (user) => {
   const accessToken = jwt.sign(
     { id: user._id, role: user.role, name: user.name },
-    process.env.JWT_SECRET ||
-      "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6",
+    process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRE || "15m" }
   );
   const refreshToken = jwt.sign(
     { id: user._id },
-    process.env.JWT_REFRESH_SECRET ||
-      "z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e8d7c6b5a4",
+    process.env.JWT_REFRESH_SECRET,
     { expiresIn: process.env.JWT_REFRESH_EXPIRE || "90d" }
   );
 
