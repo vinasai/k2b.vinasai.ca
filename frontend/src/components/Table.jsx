@@ -995,50 +995,125 @@ export default function Table({
                     {editingStudentId === s.id && (
                       <div
                         ref={editFormRef}
-                        className="p-4 border-t border-gray-600"
+                        className="p-6 border-t border-gray-600 bg-gray-750 bg-opacity-50"
                       >
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="mb-4">
+                          <h4 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                            <svg
+                              className="w-4 h-4 text-blue-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z"
+                              />
+                            </svg>
+                            Edit Student Details
+                          </h4>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Update student information below
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           <div>
                             <label className="text-xs text-gray-400 mb-1 block">
                               Name
                             </label>
-                            <input
-                              type="text"
-                              value={editFormData.name}
-                              onChange={(e) =>
-                                setEditFormData({
-                                  ...editFormData,
-                                  name: e.target.value,
-                                })
-                              }
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full pl-3 pr-3 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400 text-sm"
-                            />
+                            <div className="relative">
+                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                                <svg
+                                  className="w-4 h-4 text-gray-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                  />
+                                </svg>
+                              </div>
+                              <input
+                                type="text"
+                                value={editFormData.name}
+                                onChange={(e) =>
+                                  setEditFormData({
+                                    ...editFormData,
+                                    name: e.target.value,
+                                  })
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="Enter student name"
+                                className="w-full pl-10 pr-3 py-2.5 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 focus:ring-2 focus:ring-blue-400/20 placeholder-gray-400 text-sm transition-all duration-200 hover:border-gray-500"
+                              />
+                            </div>
                           </div>
                           <div>
                             <label className="text-xs text-gray-400 mb-1 block">
                               Parent Phone
                             </label>
-                            <input
-                              type="text"
-                              value={editFormData.parentPhone}
-                              onChange={(e) => {
-                                setEditFormData({
-                                  ...editFormData,
-                                  parentPhone: formatPhoneNumber(
-                                    e.target.value
-                                  ),
-                                });
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full pl-3 pr-3 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400 text-sm"
-                            />
+                            <div className="relative">
+                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                                <svg
+                                  className="w-4 h-4 text-gray-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                                  />
+                                </svg>
+                              </div>
+                              <input
+                                type="text"
+                                value={editFormData.parentPhone}
+                                onChange={(e) => {
+                                  setEditFormData({
+                                    ...editFormData,
+                                    parentPhone: formatPhoneNumber(
+                                      e.target.value
+                                    ),
+                                  });
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="(555) 123-4567"
+                                className="w-full pl-10 pr-3 py-2.5 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 focus:ring-2 focus:ring-blue-400/20 placeholder-gray-400 text-sm transition-all duration-200 hover:border-gray-500"
+                              />
+                            </div>
                           </div>
                           <div>
                             <label className="text-xs text-gray-400 mb-1 block">
                               Date of Birth
                             </label>
                             <div className="relative">
+                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                                <svg
+                                  className="w-4 h-4 text-gray-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                  />
+                                </svg>
+                              </div>
                               <input
                                 type="date"
                                 value={editFormData.dob}
@@ -1049,12 +1124,31 @@ export default function Table({
                                   })
                                 }
                                 onClick={(e) => e.stopPropagation()}
-                                className="w-full pl-3 pr-4 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 placeholder-gray-400 text-sm [color-scheme:dark]"
+                                className="w-full pl-10 pr-4 py-2.5 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:border-blue-400 focus:bg-gray-700 focus:ring-2 focus:ring-blue-400/20 placeholder-gray-400 text-sm [color-scheme:dark] transition-all duration-200 hover:border-gray-500"
+                                style={{
+                                  WebkitAppearance: "none",
+                                  MozAppearance: "textfield",
+                                }}
                               />
+                              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <svg
+                                  className="w-4 h-4 text-gray-500"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M19 9l-7 7-7-7"
+                                  />
+                                </svg>
+                              </div>
                             </div>
                           </div>
                         </div>
-                        <div className="flex justify-end mt-4">
+                        <div className="flex justify-end mt-6">
                           <button
                             onClick={handleUpdate}
                             disabled={isRecordLoading}

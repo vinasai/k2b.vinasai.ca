@@ -205,7 +205,7 @@ export default function Sidebar({
             <div className="text-xl font-bold text-blue-400 mb-1">
               K2B Dance Studios
             </div>
-            <div className="text-sm text-gray-400">Payment Management v2.1</div>
+            <div className="text-sm text-gray-400">Payment Management v2.2</div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}

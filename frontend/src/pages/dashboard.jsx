@@ -410,13 +410,18 @@ export default function Dashboard() {
       });
 
       setStudents((prev) =>
-        prev.map((s) => {
-          return {
-            ...s,
-            ...updatedData,
-            parentPhone: formatPhoneNumber(updatedData.parentPhone),
-          };
-        })
+        prev.map((s) =>
+          s.id === studentId
+            ? {
+                ...s,
+                name: updatedData.name || s.name,
+                parentPhone: updatedData.parentPhone
+                  ? formatPhoneNumber(updatedData.parentPhone)
+                  : s.parentPhone,
+                dob: updatedData.dob || s.dob,
+              }
+            : s
+        )
       );
 
       toast.success("Student updated successfully", {
@@ -541,26 +546,74 @@ export default function Dashboard() {
         onClassChange={setSelectedClass}
       />
       <div className="flex-1 flex flex-col min-h-0">
-        <header className="bg-gray-800 py-4 px-4 border-b border-gray-700 flex items-center justify-between z-10 flex-shrink-0">
-          <button
-            className="text-gray-400 hover:text-white md:hidden"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        <header className="bg-gray-800 py-3 px-4 border-b border-gray-700 flex items-center justify-between z-10 flex-shrink-0 shadow-lg">
+          <div className="flex items-center space-x-3">
+            <button
+              className="text-gray-400 hover:text-white transition-colors duration-200 md:hidden p-1 rounded-md hover:bg-gray-700"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Toggle sidebar"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
-          </button>
-          <h3 className="text-2xl font-bold">Payment Dashboard</h3>
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              </svg>
+            </button>
+            <h3 className="text-xl sm:text-2xl font-bold text-white truncate">
+              Payment Dashboard
+            </h3>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              className="text-gray-400 hover:text-white transition-colors duration-200 p-2 rounded-md hover:bg-gray-700 md:hidden"
+              onClick={() => window.location.reload()}
+              aria-label="Refresh page"
+              title="Refresh"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+            </button>
+            <button
+              className="hidden md:flex items-center space-x-2 text-gray-400 hover:text-white transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-700"
+              onClick={() => window.location.reload()}
+              aria-label="Refresh page"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              <span className="text-sm font-medium">Refresh</span>
+            </button>
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 min-h-0">
           {error && (

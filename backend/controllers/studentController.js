@@ -560,9 +560,40 @@ exports.updateStudent = async (req, res) => {
   }
 
   try {
-    //delete updatedData.classId;
+    // Map frontend field names to backend field names
+    const mappedData = {};
 
-    const student = await Student.findByIdAndUpdate(id, updatedData, {
+    if (updatedData.name) {
+      mappedData.studentName = updatedData.name;
+    }
+
+    if (updatedData.parentPhone) {
+      mappedData.parentContactNumber = updatedData.parentPhone;
+    }
+
+    if (updatedData.dob) {
+      // Convert MM/DD/YYYY format to Date object
+      const dateParts = updatedData.dob.split("/");
+      if (dateParts.length === 3) {
+        const [month, day, year] = dateParts;
+        mappedData.dateOfBirth = new Date(
+          parseInt(year),
+          parseInt(month) - 1,
+          parseInt(day)
+        );
+      }
+    }
+
+    // Include other fields that might be passed
+    if (updatedData.parentWhatsAppNumber) {
+      mappedData.parentWhatsAppNumber = updatedData.parentWhatsAppNumber;
+    }
+
+    if (updatedData.parentEmail) {
+      mappedData.parentEmail = updatedData.parentEmail;
+    }
+
+    const student = await Student.findByIdAndUpdate(id, mappedData, {
       new: true,
       runValidators: true,
     });
