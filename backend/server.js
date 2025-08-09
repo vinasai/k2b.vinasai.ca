@@ -4,12 +4,12 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const cookieParser = require("cookie-parser");
 
-const User = require("./models/User");
 // Import routes
 const authRoutes = require("./routes/authRoutes");
 const studentRoutes = require("./routes/studentRoutes");
 const googleAuthRoutes = require("./routes/googleAuthRoutes");
 const classRoutes = require("./routes/classRoutes");
+const { startSchedulers } = require("./services/notificationScheduler");
 
 // Load environment variables
 dotenv.config();
@@ -36,6 +36,8 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log("MongoDB connected successfully");
+    // Start background schedulers once DB is ready
+    startSchedulers();
   })
 
   .catch((err) => console.error("MongoDB connection error:", err));
@@ -48,7 +50,7 @@ app.use("/api/class", classRoutes);
 
 // Basic route for testing
 app.get("/api/health", (req, res) => {
-  res.status(200).json({ message: "Server is running v2.2" });
+  res.status(200).json({ message: "Server is running v2.3" });
 });
 
 // Error handling middleware

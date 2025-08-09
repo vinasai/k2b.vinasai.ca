@@ -41,6 +41,9 @@ export default function Table({
     parentPhone: "",
     dob: "",
   });
+  // Cooldown to prevent rapid toggles per student
+  const toggleCooldownsRef = useRef({});
+  const TOGGLE_COOLDOWN_MS = 2500; // 2.5 seconds
   const [studentToDelete, setStudentToDelete] = useState(null);
   const [studentToRemove, setStudentToRemove] = useState(null);
   const editFormRef = useRef(null);
@@ -172,7 +175,21 @@ export default function Table({
 
   // When the source students for the page change or filter changes,
   useEffect(() => {
-    setToggledStudents({});
+    // Preserve toggled state to avoid flicker; prune entries that match backend-confirmed state
+    setToggledStudents((prev) => {
+      const pruned = { ...prev };
+      students.forEach((student) => {
+        const toggled = pruned[student.id];
+        if (
+          toggled &&
+          !toggled.isLoading &&
+          toggled.status === student.status
+        ) {
+          delete pruned[student.id];
+        }
+      });
+      return pruned;
+    });
 
     // Capture the original status of each student for the current filter view
     const originalStatus = {};
@@ -190,12 +207,9 @@ export default function Table({
     setPaymentAmounts((prev) => {
       const updated = { ...prev };
       students.forEach((student) => {
-        // If student has amount from backend and we don't have local value, use backend value
         if (student.amount && !updated[student.id]) {
           updated[student.id] = student.amount.toString();
-        }
-        // If student doesn't have amount from backend and status is not-paid, clear local value
-        else if (
+        } else if (
           !student.amount &&
           student.status === "not-paid" &&
           updated[student.id]
@@ -278,6 +292,12 @@ export default function Table({
       return;
     }
 
+    // Prevent rapid toggles and concurrent toggles
+    const nextAllowed = toggleCooldownsRef.current[studentId] || 0;
+    if (toggledStudents[studentId]?.isLoading || Date.now() < nextAllowed) {
+      return;
+    }
+
     // Check if the click target or its parent is an interactive element
     const target = event.target;
     const isInteractiveElement = target.closest(
@@ -293,12 +313,19 @@ export default function Table({
   };
 
   const handleToggle = async (studentId) => {
+    // Guard: global loading or active cooldown prevents toggling
+    if (isRecordLoading) return;
+    const nextAllowed = toggleCooldownsRef.current[studentId] || 0;
+    if (toggledStudents[studentId]?.isLoading || Date.now() < nextAllowed) {
+      return;
+    }
     const originalStudent = students.find((s) => s.id === studentId);
     if (!originalStudent) return;
 
     // Determine the state before this toggle operation
-    const statusBeforeToggle =
-      toggledStudents[studentId]?.status || originalStudent.status;
+    const statusBeforeToggle = toggledStudents[studentId]
+      ? toggledStudents[studentId].status
+      : originalStudent.status;
 
     // Determine the new status
     const newStatus = statusBeforeToggle === "paid" ? "not-paid" : "paid";
@@ -343,6 +370,9 @@ export default function Table({
       },
     }));
 
+    // Set cooldown immediately to absorb rapid clicks
+    toggleCooldownsRef.current[studentId] = Date.now() + TOGGLE_COOLDOWN_MS;
+
     try {
       // Notify the parent to persist the change, including payment amount
       const result = await onPersistToggle(
@@ -371,16 +401,22 @@ export default function Table({
         });
       }
 
-      // Update with the actual date from backend
+      // Update with the actual date from backend and clear toggle if backend matches
       setToggledStudents((prev) => {
         const updatedToggles = { ...prev };
         if (updatedToggles[studentId]) {
-          updatedToggles[studentId] = {
+          const updated = {
             ...updatedToggles[studentId],
             paymentDate:
               result?.paymentDate || updatedToggles[studentId].paymentDate,
             isLoading: false,
           };
+          // If backend has applied state and parent list will reflect it, we can drop the toggle to avoid flicker
+          if (updated.status === newStatus) {
+            delete updatedToggles[studentId];
+          } else {
+            updatedToggles[studentId] = updated;
+          }
         }
         return updatedToggles;
       });

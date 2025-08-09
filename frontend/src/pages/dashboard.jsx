@@ -383,10 +383,12 @@ export default function Dashboard() {
           )
         );
 
-        // Return the payment date and amount for the Table component to use
+        // Return the payment date and amount for the Table component to use.
+        // Include the final status so the child can clear optimistic state precisely.
         return {
           paymentDate,
           amount: newStatus === "paid" && amount ? parseFloat(amount) : null,
+          status: newStatus,
         };
       }
     } catch (err) {
