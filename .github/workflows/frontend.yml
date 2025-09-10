@@ -1,4 +1,4 @@
-name: frontend deploy
+name: k2b-frontend deploy
 on:
   push:
     branches: [ main ]
