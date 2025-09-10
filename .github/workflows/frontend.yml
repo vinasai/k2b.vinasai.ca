@@ -1,4 +1,4 @@
-name: k2b.vinasai.ca deploy
+name: frontend deploy
 on:
   push:
     branches: [ main ]
