@@ -27,5 +27,5 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           docker build -t k2b-frontend ./backend
-          docker tag k2b-frontend:latest 185863139037.dkr.ecr.ap-south-1.amazonaws.com/k2b-frontend:latest
-          docker push 185863139037.dkr.ecr.ap-south-1.amazonaws.com/k2b-frontend:latest
+          docker tag k2b-backend:latest 185863139037.dkr.ecr.ap-south-1.amazonaws.com/k2b-backend:latest
+          docker push 185863139037.dkr.ecr.ap-south-1.amazonaws.com/k2b-backend:latest
