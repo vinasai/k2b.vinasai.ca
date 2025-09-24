@@ -23,6 +23,12 @@ export default function Sidebar({
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
+  const [tooltipState, setTooltipState] = useState({
+    visible: false,
+    content: "",
+    x: 0,
+    y: 0,
+  });
   const monthPickerRef = useRef(null);
   const classPickerRef = useRef(null);
 
@@ -129,6 +135,22 @@ export default function Sidebar({
     setDeferredPrompt(null);
   };
 
+  const handleClassTooltipShow = (e, className) => {
+    if (className.length > 25) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setTooltipState({
+        visible: true,
+        content: className,
+        x: rect.right + 10,
+        y: rect.top + rect.height / 2,
+      });
+    }
+  };
+
+  const handleClassTooltipHide = () => {
+    setTooltipState((prev) => ({ ...prev, visible: false }));
+  };
+
   const handleClassSelect = (classItem) => {
     onClassChange(classItem);
     setShowClassPicker(false);
@@ -205,7 +227,9 @@ export default function Sidebar({
             <div className="text-xl font-bold text-blue-400 mb-1">
               K2B Dance Studios
             </div>
-            <div className="text-sm text-gray-400">Payment Management v2.3</div>
+            <div className="text-sm text-gray-400">
+              Payment Management v2.3.1
+            </div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -294,46 +318,68 @@ export default function Sidebar({
                       </svg>
                     </button>
                     {showClassPicker && (
-                      <div className="absolute top-full left-0 right-0 mt-2 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-60 min-w-[235px] max-w-[400px] overflow-y-auto z-350 custom-scrollbar">
-                        <div className="p-2">
-                          <input
-                            type="text"
-                            placeholder="Search classes..."
-                            value={classSearchQuery}
-                            onChange={(e) =>
-                              setClassSearchQuery(e.target.value)
-                            }
-                            className="w-full px-3 py-1 mb-1 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1 p-2">
-                          {classes
-                            .filter((classItem) =>
-                              classItem.className
-                                .toLowerCase()
-                                .includes(classSearchQuery.toLowerCase())
-                            )
-                            .map((classItem) => (
-                              <button
-                                key={classItem._id}
-                                onClick={() => handleClassSelect(classItem)}
-                                className={`px-3 py-2 text-sm text-left rounded-md transition-colors duration-150 truncate ${
-                                  selectedClass?._id === classItem._id
-                                    ? "bg-blue-600 text-white font-semibold"
-                                    : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                                }`}
-                                style={{ maxWidth: "350px" }}
-                              >
-                                <span
-                                  className="truncate block w-full"
-                                  title={classItem.className}
+                      <>
+                        <div className="fixed top-auto left-4 right-4 mt-2 mb-4 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl max-h-60 z-[9999] flex flex-col backdrop-blur-sm">
+                          {/* Sticky Search Bar */}
+                          <div className="p-2 border-b border-gray-600 bg-gray-800 rounded-t-lg flex-shrink-0">
+                            <input
+                              type="text"
+                              placeholder="Search classes..."
+                              value={classSearchQuery}
+                              onChange={(e) =>
+                                setClassSearchQuery(e.target.value)
+                              }
+                              className="w-full px-3 py-1 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                          {/* Scrollable Classes List */}
+                          <div className="flex flex-col gap-1 p-2 overflow-y-auto custom-scrollbar flex-1">
+                            {classes
+                              .filter((classItem) =>
+                                classItem.className
+                                  .toLowerCase()
+                                  .includes(classSearchQuery.toLowerCase())
+                              )
+                              .map((classItem) => (
+                                <div
+                                  key={classItem._id}
+                                  onMouseOver={(e) =>
+                                    handleClassTooltipShow(
+                                      e,
+                                      classItem.className
+                                    )
+                                  }
+                                  onMouseLeave={handleClassTooltipHide}
                                 >
-                                  {classItem.className}
-                                </span>
-                              </button>
-                            ))}
+                                  <button
+                                    onClick={() => handleClassSelect(classItem)}
+                                    className={`w-full px-3 py-2 text-sm text-left rounded-md transition-colors duration-150 truncate ${
+                                      selectedClass?._id === classItem._id
+                                        ? "bg-blue-600 text-white font-semibold"
+                                        : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                                    }`}
+                                  >
+                                    <span className="truncate block w-full">
+                                      {classItem.className}
+                                    </span>
+                                  </button>
+                                </div>
+                              ))}
+                          </div>
                         </div>
-                      </div>
+                        {tooltipState.visible && (
+                          <div
+                            style={{
+                              top: tooltipState.y,
+                              left: tooltipState.x,
+                            }}
+                            className="fixed transform -translate-y-1/2 px-3 py-2 bg-gray-900 border border-gray-700 text-white text-sm rounded-lg shadow-2xl z-[99999] whitespace-nowrap backdrop-blur-sm transition-opacity duration-200"
+                          >
+                            {tooltipState.content}
+                            <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-full w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

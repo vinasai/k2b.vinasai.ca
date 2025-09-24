@@ -47,7 +47,7 @@ function isPrevMonthReminderDay(date) {
 
 function buildMessage({ studentName, amount, dueDateStr }) {
   return (
-    `Dear Parent,\n` +
+    `Dear Parent/Student,\n` +
     `Tuition fees for ${studentName} are due. Kindly settle the payment of ${amount} ` +
     `by ${dueDateStr}.\n` +
     `Thank you,\n` +

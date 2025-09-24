@@ -569,9 +569,16 @@ export default function Dashboard() {
                 />
               </svg>
             </button>
-            <h3 className="text-xl sm:text-2xl font-bold text-white truncate">
-              Payment Dashboard
-            </h3>
+            <div className="flex flex-col min-w-0">
+              <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white truncate">
+                Payment Dashboard
+              </h3>
+              {selectedClass && (
+                <span className="text-xs sm:text-sm text-blue-400 truncate">
+                  {selectedClass.className}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center space-x-2">
