@@ -9,6 +9,7 @@ const authRoutes = require("./routes/authRoutes");
 const studentRoutes = require("./routes/studentRoutes");
 const googleAuthRoutes = require("./routes/googleAuthRoutes");
 const classRoutes = require("./routes/classRoutes");
+const reportRoutes = require("./routes/reportRoutes");
 const { startSchedulers } = require("./services/notificationScheduler");
 
 // Load environment variables
@@ -47,6 +48,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/google-auth", googleAuthRoutes);
 app.use("/api/class", classRoutes);
+app.use("/api/reports", reportRoutes);
 
 // Basic route for testing
 app.get("/api/health", (req, res) => {

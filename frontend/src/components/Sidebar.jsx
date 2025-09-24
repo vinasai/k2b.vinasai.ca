@@ -498,8 +498,7 @@ export default function Sidebar({
           {/* Reports Section */}
           <div className="p-4 mx-4 mb-8 bg-gray-700/50 rounded-lg border border-gray-600/50 backdrop-blur-sm">
             <button
-              // onClick={handleReportsClick}
-
+              onClick={handleReportsClick}
               className="w-full p-3 bg-gray-800 border border-gray-600 rounded-lg flex items-center justify-between hover:bg-gray-750 transition-colors duration-200 group"
             >
               <div className="flex items-center gap-3">
@@ -522,10 +521,9 @@ export default function Sidebar({
                   <div className="text-sm font-semibold text-white">
                     Reports
                   </div>
-                  {/* <div className="text-xs text-gray-400">
-                    View payment analytics
-                  </div> */}
-                  <div className="text-xs text-gray-400">Comming soon...</div>
+                  <div className="text-xs text-gray-400">
+                    Generate payment reports
+                  </div>
                 </div>
               </div>
               <svg
