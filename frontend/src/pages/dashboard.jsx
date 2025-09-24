@@ -124,12 +124,12 @@ export default function Dashboard() {
       return;
     }
 
-    console.log("Starting fetch with:", {
-      selectedMonth,
-      selectedClassId: selectedClass._id,
-      filter,
-      currentPage,
-    });
+    // console.log("Starting fetch with:", {
+    //   selectedMonth,
+    //   selectedClassId: selectedClass._id,
+    //   filter,
+    //   currentPage,
+    // });
 
     const fetchData = async () => {
       if (currentPage === 1) {

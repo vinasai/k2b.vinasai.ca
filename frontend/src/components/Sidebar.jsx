@@ -158,6 +158,9 @@ export default function Sidebar({
   const handleClassSelect = (classItem) => {
     onClassChange(classItem);
     setShowClassPicker(false);
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
   };
 
   const getInitials = (name) => {
@@ -200,6 +203,9 @@ export default function Sidebar({
     setShowMonthPicker(false);
     if (onMonthChange) {
       onMonthChange(month.substring(0, 3).toUpperCase());
+    }
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
     }
   };
 
