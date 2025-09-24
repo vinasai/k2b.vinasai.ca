@@ -28,6 +28,7 @@ export default function Sidebar({
     content: "",
     x: 0,
     y: 0,
+    position: "right",
   });
   const monthPickerRef = useRef(null);
   const classPickerRef = useRef(null);
@@ -138,11 +139,14 @@ export default function Sidebar({
   const handleClassTooltipShow = (e, className) => {
     if (className.length > 25) {
       const rect = e.currentTarget.getBoundingClientRect();
+      const isMobile = window.innerWidth < 768; // Tailwind's 'md' breakpoint
+
       setTooltipState({
         visible: true,
         content: className,
-        x: rect.right + 10,
-        y: rect.top + rect.height / 2,
+        x: isMobile ? rect.left + rect.width / 2 : rect.right + 10,
+        y: isMobile ? rect.top - 10 : rect.top + rect.height / 2,
+        position: isMobile ? "top" : "right",
       });
     }
   };
@@ -333,7 +337,10 @@ export default function Sidebar({
                             />
                           </div>
                           {/* Scrollable Classes List */}
-                          <div className="flex flex-col gap-1 p-2 overflow-y-auto custom-scrollbar flex-1">
+                          <div
+                            onScroll={handleClassTooltipHide}
+                            className="flex flex-col gap-1 p-2 overflow-y-auto custom-scrollbar flex-1"
+                          >
                             {classes
                               .filter((classItem) =>
                                 classItem.className
@@ -373,10 +380,18 @@ export default function Sidebar({
                               top: tooltipState.y,
                               left: tooltipState.x,
                             }}
-                            className="fixed transform -translate-y-1/2 px-3 py-2 bg-gray-900 border border-gray-700 text-white text-sm rounded-lg shadow-2xl z-[99999] whitespace-nowrap backdrop-blur-sm transition-opacity duration-200"
+                            className={`fixed px-3 py-2 bg-gray-900 border border-gray-700 text-white text-sm rounded-lg shadow-2xl z-[99999] whitespace-nowrap backdrop-blur-sm transition-opacity duration-200 ${
+                              tooltipState.position === "top"
+                                ? "transform -translate-x-1/2 -translate-y-full"
+                                : "transform -translate-y-1/2"
+                            }`}
                           >
                             {tooltipState.content}
-                            <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-full w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+                            {tooltipState.position === "top" ? (
+                              <div className="absolute left-1/2 top-full transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-900"></div>
+                            ) : (
+                              <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-full w-0 h-0 border-t-4 border-b-4 border-r-4 border-t-transparent border-b-transparent border-r-gray-900"></div>
+                            )}
                           </div>
                         )}
                       </>
